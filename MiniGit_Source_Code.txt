@@ -1,0 +1,2545 @@
+================================================================================
+FILE: Main.java
+================================================================================
+
+import composite.File;
+import merge.Change;
+import merge.MergeResult;
+import repository.Commit;
+import repository.RepositoryManager;
+import strategy.DestinationPreferredStrategy;
+import strategy.SourcePreferredStrategy;
+
+import java.util.List;
+import java.util.Scanner;
+
+public class Main {
+    private static final Scanner scanner = new Scanner(System.in);
+    private static final RepositoryManager manager = new RepositoryManager();
+
+    public static void main(String[] args) {
+        System.out.println("====================================");
+        System.out.println("          MINI GIT SYSTEM");
+        System.out.println("====================================");
+
+        String repositoryName = read("Enter repository name: ");
+        if (repositoryName.isBlank()) {
+            repositoryName = "MiniGitProject";
+        }
+        manager.createRepository(repositoryName);
+        System.out.println("Repository created successfully.");
+
+        boolean running = true;
+        while (running) {
+            printMenu();
+            String choice = read("Enter choice: ");
+            System.out.println();
+
+            try {
+                switch (choice) {
+                    case "1" -> createFile();
+                    case "2" -> createFolder();
+                    case "3" -> modifyFile();
+                    case "4" -> rename();
+                    case "5" -> move();
+                    case "6" -> delete();
+                    case "7" -> manager.printProject();
+                    case "8" -> commit();
+                    case "9" -> manager.printHistory();
+                    case "10" -> restore();
+                    case "11" -> createBranch();
+                    case "12" -> createBranchFromCommit();
+                    case "13" -> manager.printBranches();
+                    case "14" -> switchBranch();
+                    case "15" -> compareCommits();
+                    case "16" -> merge();
+                    case "17" -> chooseDefaultMergeStrategy();
+                    case "18" -> countFiles();
+                    case "19" -> totalSize();
+                    case "20" -> searchFiles();
+                    case "21" -> listByExtension();
+                    case "22" -> manager.undo();
+                    case "23" -> manager.redo();
+                    case "24" -> manager.printActivity();
+                    case "0" -> running = false;
+                    default -> System.out.println("Invalid choice.");
+                }
+            } catch (Exception e) {
+                System.out.println("Operation failed: " + e.getMessage());
+            }
+        }
+
+        System.out.println("Thank you for using Mini Git.");
+    }
+
+    private static void printMenu() {
+        System.out.println("\n====================================");
+        System.out.println(" Repository: " + manager.getRepository().getName());
+        System.out.println(" Branch:     " + manager.getActiveBranch().getCode());
+        System.out.println("====================================");
+        System.out.println("1.  Create File");
+        System.out.println("2.  Create Folder");
+        System.out.println("3.  Modify File");
+        System.out.println("4.  Rename File/Folder");
+        System.out.println("5.  Move File/Folder");
+        System.out.println("6.  Delete File/Folder");
+        System.out.println("7.  Show Project Structure");
+        System.out.println("8.  Commit Changes");
+        System.out.println("9.  View Commit History");
+        System.out.println("10. Restore Previous Commit");
+        System.out.println("11. Create Branch");
+        System.out.println("12. Create Branch From Commit");
+        System.out.println("13. View Branches");
+        System.out.println("14. Switch Branch");
+        System.out.println("15. Compare Two Commits");
+        System.out.println("16. Merge Branch");
+        System.out.println("17. Set Default Merge Strategy");
+        System.out.println("18. Count Files");
+        System.out.println("19. Calculate Total File Size");
+        System.out.println("20. Search Files");
+        System.out.println("21. List Files By Extension");
+        System.out.println("22. Undo");
+        System.out.println("23. Redo");
+        System.out.println("24. View Activity History");
+        System.out.println("0.  Exit");
+        System.out.println("====================================");
+    }
+
+    private static void createFile() {
+        String parent = read("Parent folder path (blank for root): ");
+        String name = read("File name: ");
+        String content = read("File content: ");
+        manager.createFile(parent, name, content);
+        System.out.println("File created.");
+    }
+
+    private static void createFolder() {
+        String parent = read("Parent folder path (blank for root): ");
+        String name = read("Folder name: ");
+        manager.createFolder(parent, name);
+        System.out.println("Folder created.");
+    }
+
+    private static void modifyFile() {
+        String path = read("File path: ");
+        String content = read("New content: ");
+        manager.modify(path, content);
+        System.out.println("File modified.");
+    }
+
+    private static void rename() {
+        String path = read("File/folder path: ");
+        String newName = read("New name: ");
+        manager.rename(path, newName);
+        System.out.println("Rename completed.");
+    }
+
+    private static void move() {
+        String source = read("File/folder path to move: ");
+        String destination = read("Destination folder path (blank for root): ");
+        manager.move(source, destination);
+        System.out.println("Move completed.");
+    }
+
+    private static void delete() {
+        String path = read("File/folder path to delete: ");
+        manager.delete(path);
+        System.out.println("Delete completed.");
+    }
+
+    private static void commit() {
+        String message = read("Commit message: ");
+        String author = read("Author: ");
+        Commit commit = manager.commit(message, author);
+        System.out.println("Created commit: " + commit.getId());
+    }
+
+    private static void restore() {
+        String commitId = read("Commit ID to restore: ");
+        manager.restore(commitId);
+        System.out.println("Restore completed.");
+    }
+
+    private static void createBranch() {
+        String name = read("New branch name: ");
+        manager.createBranch(name);
+        System.out.println("Branch created.");
+    }
+
+    private static void createBranchFromCommit() {
+        String name = read("New branch name: ");
+        String commitId = read("Commit ID: ");
+        manager.createBranchFromCommit(name, commitId);
+        System.out.println("Branch created from commit.");
+    }
+
+    private static void switchBranch() {
+        String name = read("Branch name: ");
+        manager.switchBranch(name);
+        System.out.println("Switched to branch " + name + ".");
+    }
+
+    private static void compareCommits() {
+        String older = read("Older commit ID: ");
+        String newer = read("Newer commit ID: ");
+        Change[] changes = manager.compareCommits(older, newer);
+        System.out.println("\n===== COMMIT COMPARISON =====");
+        for (Change change : changes) {
+            System.out.println(change);
+        }
+        System.out.println("=============================");
+    }
+
+    private static void merge() {
+        String source = read("Source branch to merge: ");
+        System.out.println("1. Use default strategy");
+        System.out.println("2. Source Preferred");
+        System.out.println("3. Destination Preferred");
+        String choice = read("Choose strategy: ");
+
+        MergeResult result;
+        if ("2".equals(choice)) {
+            result = manager.merge(source, new SourcePreferredStrategy());
+        } else if ("3".equals(choice)) {
+            result = manager.merge(source, new DestinationPreferredStrategy());
+        } else {
+            result = manager.merge(source);
+        }
+        result.printResult();
+    }
+
+    private static void chooseDefaultMergeStrategy() {
+        System.out.println("1. Source Preferred");
+        System.out.println("2. Destination Preferred");
+        String choice = read("Choose default strategy: ");
+        if ("1".equals(choice)) {
+            manager.setDefaultSourcePreferred();
+            System.out.println("Default strategy set to Source Preferred.");
+        } else if ("2".equals(choice)) {
+            manager.setDefaultDestinationPreferred();
+            System.out.println("Default strategy set to Destination Preferred.");
+        } else {
+            System.out.println("Invalid strategy.");
+        }
+    }
+
+    private static void countFiles() {
+        System.out.println("Total files: " + manager.countFiles());
+    }
+
+    private static void totalSize() {
+        System.out.println("Total content size: " + manager.totalSize());
+    }
+
+    private static void searchFiles() {
+        String condition = read("Enter file name/path condition: ");
+        List<File> files = manager.searchFiles(condition);
+        System.out.println("Search results:");
+        if (files.isEmpty()) {
+            System.out.println("No files found.");
+        } else {
+            for (File file : files) {
+                System.out.println("- " + file.getFilePath());
+            }
+        }
+    }
+
+    private static void listByExtension() {
+        String extension = read("Enter extension (example: .java): ");
+        List<String> files = manager.listByExtension(extension);
+        System.out.println("Files:");
+        if (files.isEmpty()) {
+            System.out.println("No files found.");
+        } else {
+            for (String path : files) {
+                System.out.println("- " + path);
+            }
+        }
+    }
+
+    private static String read(String prompt) {
+        System.out.print(prompt);
+        return scanner.nextLine().trim();
+    }
+}
+
+
+================================================================================
+FILE: command/Command.java
+================================================================================
+
+package command;
+
+public interface Command {
+    void execute();
+    void undo();
+}
+
+
+================================================================================
+FILE: command/CreateCommand.java
+================================================================================
+
+package command;
+
+import composite.File;
+import composite.Folder;
+import repository.Git;
+
+public class CreateCommand implements Command {
+    private final Git git;
+    private final String parentPath;
+    private final String name;
+    private final String content;
+    private final boolean folder;
+    private Object created;
+
+    public CreateCommand(Git git, String parentPath, String name, boolean folder, String content) {
+        this.git = git;
+        this.parentPath = parentPath == null ? "" : parentPath;
+        this.name = name;
+        this.folder = folder;
+        this.content = content == null ? "" : content;
+    }
+
+    @Override
+    public void execute() {
+        Folder parent = git.getWorkingFolder().findFolder(parentPath);
+        if (parent == null) {
+            throw new IllegalArgumentException("Parent folder not found: " + parentPath);
+        }
+        if (folder) {
+            Folder newFolder = new Folder(name);
+            parent.addFolder(newFolder);
+            created = newFolder;
+        } else {
+            File newFile = new File(name, content);
+            parent.addFile(newFile);
+            created = newFile;
+        }
+        git.getWorkingFolder().refreshPaths("");
+    }
+
+    @Override
+    public void undo() {
+        if (created instanceof File) {
+            git.getWorkingFolder().detachFile(((File) created).getFilePath());
+        } else if (created instanceof Folder) {
+            git.getWorkingFolder().detachFolder(((Folder) created).getFolderPath());
+        }
+        git.getWorkingFolder().refreshPaths("");
+    }
+}
+
+
+================================================================================
+FILE: command/DeleteCommand.java
+================================================================================
+
+package command;
+
+import composite.File;
+import composite.Folder;
+import repository.Git;
+
+public class DeleteCommand implements Command {
+    private final Git git;
+    private final String path;
+    private int pos;
+    private Object deleted;
+    private String parentPath;
+    private boolean file;
+
+    public DeleteCommand(Git git, String path) {
+        this.git = git;
+        this.path = path;
+    }
+
+    @Override
+    public void execute() {
+        File targetFile = git.getWorkingFolder().findFile(path);
+        if (targetFile != null) {
+            parentPath = parentPath(path);
+            Folder parent = git.getWorkingFolder().findFolder(parentPath);
+            pos = parent.getFiles().indexOf(targetFile);
+            deleted = targetFile.deepCopy();
+            parent.removeFile(targetFile);
+            file = true;
+            return;
+        }
+
+        Folder targetFolder = git.getWorkingFolder().findFolder(path);
+        if (targetFolder == null || targetFolder == git.getWorkingFolder()) {
+            throw new IllegalArgumentException("File or folder not found: " + path);
+        }
+        parentPath = parentPath(path);
+        Folder parent = git.getWorkingFolder().findFolder(parentPath);
+        pos = parent.getFolders().indexOf(targetFolder);
+        deleted = targetFolder.deepCopy();
+        parent.removeFolder(targetFolder);
+        file = false;
+        git.getWorkingFolder().refreshPaths("");
+    }
+
+    @Override
+    public void undo() {
+        Folder parent = git.getWorkingFolder().findFolder(parentPath);
+        if (parent == null || deleted == null) {
+            return;
+        }
+
+        if (file) {
+            File copy = ((File) deleted).deepCopy();
+            if (pos < 0 || pos > parent.getFiles().size()) {
+                parent.addFile(copy);
+            } else {
+                parent.getFiles().add(pos, copy);
+            }
+        } else {
+            Folder copy = ((Folder) deleted).deepCopy();
+            if (pos < 0 || pos > parent.getFolders().size()) {
+                parent.addFolder(copy);
+            } else {
+                parent.getFolders().add(pos, copy);
+            }
+        }
+        git.getWorkingFolder().refreshPaths("");
+    }
+
+    private String parentPath(String value) {
+        String normalized = value == null ? "" : value.replace('\\', '/');
+        int slash = normalized.lastIndexOf('/');
+        return slash < 0 ? "" : normalized.substring(0, slash);
+    }
+}
+
+
+================================================================================
+FILE: command/ModifyCommand.java
+================================================================================
+
+package command;
+
+import composite.File;
+import repository.Git;
+
+public class ModifyCommand implements Command {
+    private final Git git;
+    private final String filePath;
+    private final String newContent;
+    private String oldContent;
+
+    public ModifyCommand(Git git, String filePath, String newContent) {
+        this.git = git;
+        this.filePath = filePath;
+        this.newContent = newContent == null ? "" : newContent;
+    }
+
+    @Override
+    public void execute() {
+        File file = git.getWorkingFolder().findFile(filePath);
+        if (file == null) {
+            throw new IllegalArgumentException("File not found: " + filePath);
+        }
+        oldContent = file.getContent();
+        file.setContent(newContent);
+    }
+
+    @Override
+    public void undo() {
+        File file = git.getWorkingFolder().findFile(filePath);
+        if (file != null && oldContent != null) {
+            file.setContent(oldContent);
+        }
+    }
+}
+
+
+================================================================================
+FILE: command/MoveCommand.java
+================================================================================
+
+package command;
+
+import composite.File;
+import composite.Folder;
+import repository.Git;
+
+public class MoveCommand implements Command {
+    private final Git git;
+    private final String sourcePath;
+    private final String destinationFolderPath;
+    private String originalPath;
+    private boolean file;
+
+    public MoveCommand(Git git, String sourcePath, String destinationFolderPath) {
+        this.git = git;
+        this.sourcePath = sourcePath;
+        this.destinationFolderPath = destinationFolderPath == null ? "" : destinationFolderPath;
+    }
+
+    @Override
+    public void execute() {
+        Folder destination = git.getWorkingFolder().findFolder(destinationFolderPath);
+        if (destination == null) {
+            throw new IllegalArgumentException("Destination folder not found: " + destinationFolderPath);
+        }
+
+        File targetFile = git.getWorkingFolder().findFile(sourcePath);
+        if (targetFile != null) {
+            originalPath = targetFile.getFilePath();
+            File detached = git.getWorkingFolder().detachFile(sourcePath);
+            destination.addFile(detached);
+            file = true;
+            git.getWorkingFolder().refreshPaths("");
+            return;
+        }
+
+        Folder targetFolder = git.getWorkingFolder().findFolder(sourcePath);
+        if (targetFolder == null || targetFolder == git.getWorkingFolder()) {
+            throw new IllegalArgumentException("File or folder not found: " + sourcePath);
+        }
+        if (isInside(targetFolder, destination)) {
+            throw new IllegalArgumentException("Cannot move a folder inside itself.");
+        }
+
+        originalPath = targetFolder.getFolderPath();
+        Folder detached = git.getWorkingFolder().detachFolder(sourcePath);
+        destination.addFolder(detached);
+        file = false;
+        git.getWorkingFolder().refreshPaths("");
+    }
+
+    @Override
+    public void undo() {
+        if (originalPath == null) {
+            return;
+        }
+
+        int slash = originalPath.lastIndexOf('/');
+        String parentPath = slash < 0 ? "" : originalPath.substring(0, slash);
+        Folder originalParent = git.getWorkingFolder().findFolder(parentPath);
+        if (originalParent == null) {
+            return;
+        }
+
+        if (file) {
+            File moved = git.getWorkingFolder().findFile(currentFilePath());
+            if (moved != null) {
+                File detached = git.getWorkingFolder().detachFile(currentFilePath());
+                originalParent.addFile(detached);
+            }
+        } else {
+            Folder moved = git.getWorkingFolder().findFolder(currentFolderPath());
+            if (moved != null) {
+                Folder detached = git.getWorkingFolder().detachFolder(currentFolderPath());
+                originalParent.addFolder(detached);
+            }
+        }
+        git.getWorkingFolder().refreshPaths("");
+    }
+
+    private String currentFilePath() {
+        return appendDestinationPath(getNameFromPath(originalPath));
+    }
+
+    private String currentFolderPath() {
+        return appendDestinationPath(getNameFromPath(originalPath));
+    }
+
+    private String appendDestinationPath(String name) {
+        return destinationFolderPath.isEmpty() ? name : destinationFolderPath + "/" + name;
+    }
+
+    private String getNameFromPath(String path) {
+        int slash = path.lastIndexOf('/');
+        return slash < 0 ? path : path.substring(slash + 1);
+    }
+
+    private boolean isInside(Folder parent, Folder candidate) {
+        String parentPath = parent.getFolderPath();
+        String candidatePath = candidate.getFolderPath();
+        return !parentPath.isEmpty()
+                && (candidatePath.equals(parentPath) || candidatePath.startsWith(parentPath + "/"));
+    }
+}
+
+
+================================================================================
+FILE: command/RenameCommand.java
+================================================================================
+
+package command;
+
+import composite.File;
+import composite.Folder;
+import repository.Git;
+
+public class RenameCommand implements Command {
+    private final Git git;
+    private final String path;
+    private final String newName;
+    private String oldName;
+    private boolean file;
+
+    public RenameCommand(Git git, String path, String newName) {
+        this.git = git;
+        this.path = path;
+        this.newName = newName;
+    }
+
+    @Override
+    public void execute() {
+        File targetFile = git.getWorkingFolder().findFile(path);
+        if (targetFile != null) {
+            oldName = targetFile.getName();
+            file = true;
+            targetFile.setName(newName);
+            git.getWorkingFolder().refreshPaths("");
+            return;
+        }
+
+        Folder targetFolder = git.getWorkingFolder().findFolder(path);
+        if (targetFolder == null || targetFolder == git.getWorkingFolder()) {
+            throw new IllegalArgumentException("File or folder not found: " + path);
+        }
+        oldName = targetFolder.getName();
+        file = false;
+        targetFolder.setName(newName);
+        git.getWorkingFolder().refreshPaths("");
+    }
+
+    @Override
+    public void undo() {
+        if (oldName == null) {
+            return;
+        }
+        if (file) {
+            File targetFile = git.getWorkingFolder().findFile(pathAfterRename());
+            if (targetFile != null) {
+                targetFile.setName(oldName);
+            }
+        } else {
+            Folder targetFolder = git.getWorkingFolder().findFolder(pathAfterRename());
+            if (targetFolder != null) {
+                targetFolder.setName(oldName);
+            }
+        }
+        git.getWorkingFolder().refreshPaths("");
+    }
+
+    private String pathAfterRename() {
+        int slash = path.lastIndexOf('/');
+        String parent = slash < 0 ? "" : path.substring(0, slash);
+        return parent.isEmpty() ? newName : parent + "/" + newName;
+    }
+}
+
+
+================================================================================
+FILE: composite/File.java
+================================================================================
+
+package composite;
+
+public class File {
+    private String name;
+    private String content;
+    private String filePath;
+
+    public File(String name, String content) {
+        this.name = name;
+        this.content = content;
+        this.filePath = name;
+    }
+
+    public File(String name, String content, String filePath) {
+        this.name = name;
+        this.content = content;
+        this.filePath = filePath;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public String getContent() {
+        return content;
+    }
+
+    public String getFilePath() {
+        return filePath;
+    }
+
+    public void setContent(String content) {
+        this.content = content;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public void setFilePath(String filePath) {
+        this.filePath = filePath;
+    }
+
+    public File deepCopy() {
+        return new File(name, content, filePath);
+    }
+
+    @Override
+    public String toString() {
+        return filePath + " (" + content.length() + " bytes)";
+    }
+}
+
+
+================================================================================
+FILE: composite/Folder.java
+================================================================================
+
+package composite;
+
+import java.util.ArrayList;
+import java.util.List;
+
+public class Folder {
+    private String name;
+    private String folderPath;
+    private final List<File> files;
+    private final List<Folder> folders;
+
+    public Folder(String name) {
+        this(name, "");
+    }
+
+    public Folder(String name, String folderPath) {
+        this.name = name;
+        this.folderPath = folderPath == null ? "" : normalize(folderPath);
+        this.files = new ArrayList<>();
+        this.folders = new ArrayList<>();
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public String getFolderPath() {
+        return folderPath;
+    }
+
+    public List<Object> getChildren() {
+        List<Object> children = new ArrayList<>();
+        children.addAll(files);
+        children.addAll(folders);
+        return children;
+    }
+
+    public List<File> getFiles() {
+        return files;
+    }
+
+    public List<Folder> getFolders() {
+        return folders;
+    }
+
+    public void addFile(File file) {
+        if (file == null) {
+            throw new IllegalArgumentException("File cannot be null.");
+        }
+        files.add(file);
+        refreshPaths(folderPath);
+    }
+
+    public void addFolder(Folder folder) {
+        if (folder == null) {
+            throw new IllegalArgumentException("Folder cannot be null.");
+        }
+        folders.add(folder);
+        refreshPaths(folderPath);
+    }
+
+    public boolean removeFile(File file) {
+        return files.remove(file);
+    }
+
+    public boolean removeFolder(Folder folder) {
+        return folders.remove(folder);
+    }
+
+
+    public void addFileAtPath(String path, String content) {
+        String target = normalize(path);
+        int slash = target.lastIndexOf('/');
+        String parentPath = slash < 0 ? "" : target.substring(0, slash);
+        String fileName = slash < 0 ? target : target.substring(slash + 1);
+        Folder parent = ensureFolderPath(parentPath);
+        parent.addFile(new File(fileName, content));
+        refreshPaths("");
+    }
+
+
+    public Folder ensureFolderPath(String path) {
+        String target = normalize(path);
+        if (target.isEmpty()) {
+            return this;
+        }
+        Folder existing = findFolder(target);
+        if (existing != null) {
+            return existing;
+        }
+        String[] parts = target.split("/");
+        Folder current = this;
+        String currentPath = "";
+        for (String part : parts) {
+            currentPath = currentPath.isEmpty() ? part : currentPath + "/" + part;
+            Folder next = findFolder(currentPath);
+            if (next == null) {
+                next = new Folder(part);
+                current.addFolder(next);
+            }
+            current = next;
+        }
+        refreshPaths("");
+        return current;
+    }
+
+    public void updateOrAddFile(String path, String content) {
+        File file = findFile(path);
+        if (file != null) {
+            file.setContent(content);
+            return;
+        }
+        addFileAtPath(path, content);
+    }
+
+    public File findFile(String path) {
+        String target = normalize(path);
+        for (File file : files) {
+            if (normalize(file.getFilePath()).equals(target)) {
+                return file;
+            }
+        }
+        for (Folder folder : folders) {
+            File found = folder.findFile(target);
+            if (found != null) {
+                return found;
+            }
+        }
+        return null;
+    }
+
+    public Folder findFolder(String path) {
+        String target = normalize(path);
+        if (target.isEmpty()) {
+            return this;
+        }
+        for (Folder folder : folders) {
+            if (normalize(folder.getFolderPath()).equals(target)) {
+                return folder;
+            }
+            Folder found = folder.findFolder(target);
+            if (found != null) {
+                return found;
+            }
+        }
+        return null;
+    }
+
+    public Folder findParentFolder(String path) {
+        String target = normalize(path);
+        int lastSlash = target.lastIndexOf('/');
+        String parentPath = lastSlash < 0 ? "" : target.substring(0, lastSlash);
+        return findFolder(parentPath);
+    }
+
+    public File detachFile(String path) {
+        String target = normalize(path);
+        for (int i = 0; i < files.size(); i++) {
+            if (normalize(files.get(i).getFilePath()).equals(target)) {
+                return files.remove(i);
+            }
+        }
+        for (Folder folder : folders) {
+            File detached = folder.detachFile(target);
+            if (detached != null) {
+                return detached;
+            }
+        }
+        return null;
+    }
+
+    public Folder detachFolder(String path) {
+        String target = normalize(path);
+        for (int i = 0; i < folders.size(); i++) {
+            Folder folder = folders.get(i);
+            if (normalize(folder.getFolderPath()).equals(target)) {
+                return folders.remove(i);
+            }
+        }
+        for (Folder folder : folders) {
+            Folder detached = folder.detachFolder(target);
+            if (detached != null) {
+                return detached;
+            }
+        }
+        return null;
+    }
+
+    public void refreshPaths(String parentPath) {
+        this.folderPath = normalize(parentPath);
+
+        String currentPath = folderPath;
+        for (Folder folder : folders) {
+            String childPath = currentPath.isEmpty() ? folder.getName() : currentPath + "/" + folder.getName();
+            folder.refreshPaths(childPath);
+        }
+
+        for (File file : files) {
+            String filePath = currentPath.isEmpty() ? file.getName() : currentPath + "/" + file.getName();
+            file.setFilePath(filePath);
+        }
+    }
+
+    public Folder deepCopy() {
+        Folder copy = new Folder(name, folderPath);
+        for (File file : files) {
+            copy.files.add(file.deepCopy());
+        }
+        for (Folder folder : folders) {
+            copy.folders.add(folder.deepCopy());
+        }
+        copy.refreshPaths(copy.folderPath);
+        return copy;
+    }
+
+    public void printTree(String indent) {
+        if (!folderPath.isEmpty()) {
+            System.out.println(indent + "+ " + name + "/");
+        } else {
+            System.out.println(indent + "+ " + name + "/");
+        }
+        String childIndent = indent + "  ";
+        for (File file : files) {
+            System.out.println(childIndent + "- " + file.getName() + " : " + file.getContent());
+        }
+        for (Folder folder : folders) {
+            folder.printTree(childIndent);
+        }
+    }
+
+    private static String normalize(String path) {
+        if (path == null) {
+            return "";
+        }
+        String value = path.trim().replace('\\', '/');
+        while (value.startsWith("/")) {
+            value = value.substring(1);
+        }
+        while (value.endsWith("/") && !value.isEmpty()) {
+            value = value.substring(0, value.length() - 1);
+        }
+        return value;
+    }
+}
+
+
+================================================================================
+FILE: events/ActivityLogger.java
+================================================================================
+
+package events;
+
+import java.util.ArrayList;
+import java.util.List;
+
+public class ActivityLogger implements RepositoryEventListener {
+    private final List<RepositoryEvent> history = new ArrayList<>();
+
+    @Override
+    public void onEvent(RepositoryEvent event) {
+        history.add(event);
+        System.out.println("[Activity] " + event.getMessage());
+    }
+
+    public List<RepositoryEvent> getHistory() {
+        return new ArrayList<>(history);
+    }
+
+    public void printHistory() {
+        System.out.println("\n===== ACTIVITY HISTORY =====");
+        if (history.isEmpty()) {
+            System.out.println("No repository activity yet.");
+        } else {
+            for (RepositoryEvent event : history) {
+                System.out.println(event);
+            }
+        }
+        System.out.println("============================");
+    }
+}
+
+
+================================================================================
+FILE: events/BranchEventListener.java
+================================================================================
+
+package events;
+
+public class BranchEventListener implements RepositoryEventListener {
+    @Override
+    public void onEvent(RepositoryEvent event) {
+        if ("BRANCH_CREATED".equals(event.getType()) || "BRANCH_SWITCHED".equals(event.getType())) {
+            System.out.println("[Branch Reaction] Branch information refreshed.");
+        }
+    }
+}
+
+
+================================================================================
+FILE: events/CommitEventListener.java
+================================================================================
+
+package events;
+
+public class CommitEventListener implements RepositoryEventListener {
+    @Override
+    public void onEvent(RepositoryEvent event) {
+        if ("COMMIT".equals(event.getType())) {
+            System.out.println("[Commit Reaction] Commit history updated.");
+        }
+    }
+}
+
+
+================================================================================
+FILE: events/MergeEventListener.java
+================================================================================
+
+package events;
+
+public class MergeEventListener implements RepositoryEventListener {
+    @Override
+    public void onEvent(RepositoryEvent event) {
+        if ("MERGE".equals(event.getType())) {
+            System.out.println("[Merge Reaction] Merge/diff information refreshed.");
+        }
+    }
+}
+
+
+================================================================================
+FILE: events/RepositoryEvent.java
+================================================================================
+
+package events;
+
+import java.time.LocalDateTime;
+
+public class RepositoryEvent {
+    private final String type;
+    private final String message;
+    private final LocalDateTime timestamp;
+
+    public RepositoryEvent(String type, String message) {
+        this.type = type;
+        this.message = message;
+        this.timestamp = LocalDateTime.now();
+    }
+
+    public String getType() {
+        return type;
+    }
+
+    public String getMessage() {
+        return message;
+    }
+
+    public LocalDateTime getTimestamp() {
+        return timestamp;
+    }
+
+    @Override
+    public String toString() {
+        return timestamp + " | " + type + " | " + message;
+    }
+}
+
+
+================================================================================
+FILE: events/RepositoryEventListener.java
+================================================================================
+
+package events;
+
+public interface RepositoryEventListener {
+    void onEvent(RepositoryEvent event);
+}
+
+
+================================================================================
+FILE: memento/EditorSnapshot.java
+================================================================================
+
+package memento;
+
+import composite.Folder;
+
+public final class EditorSnapshot {
+    private final String content;
+    private final Folder projectSnapshot;
+
+    public EditorSnapshot(Folder projectSnapshot) {
+        if (projectSnapshot == null) {
+            throw new IllegalArgumentException("Project snapshot cannot be null.");
+        }
+        this.projectSnapshot = projectSnapshot.deepCopy();
+        this.content = this.projectSnapshot.toString();
+    }
+
+    public EditorSnapshot(String content, Folder projectSnapshot) {
+        this.content = content == null ? "" : content;
+        this.projectSnapshot = projectSnapshot == null ? new Folder("project") : projectSnapshot.deepCopy();
+    }
+
+    public String getContent() {
+        return content;
+    }
+
+    public Folder getProjectSnapshot() {
+        return projectSnapshot.deepCopy();
+    }
+}
+
+
+================================================================================
+FILE: memento/SnapshotHistory.java
+================================================================================
+
+package memento;
+
+import java.util.Stack;
+
+public class SnapshotHistory {
+    private final Stack<EditorSnapshot> snapshots = new Stack<>();
+
+    public void push(EditorSnapshot snapshot) {
+        if (snapshot != null) {
+            snapshots.push(snapshot);
+        }
+    }
+
+    public EditorSnapshot pop() {
+        return snapshots.isEmpty() ? null : snapshots.pop();
+    }
+
+    public EditorSnapshot peek() {
+        return snapshots.isEmpty() ? null : snapshots.peek();
+    }
+
+    public boolean isEmpty() {
+        return snapshots.isEmpty();
+    }
+
+    public int size() {
+        return snapshots.size();
+    }
+
+    public void clear() {
+        snapshots.clear();
+    }
+}
+
+
+================================================================================
+FILE: merge/Change.java
+================================================================================
+
+package merge;
+
+public class Change {
+    public enum Status {
+        ADDED, DELETED, MODIFIED, UNCHANGED, CONFLICT, RESOLVED
+    }
+
+    private final String path;
+    private final String oldContent;
+    private final String newContent;
+    private Status status;
+
+    public Change(String path, Status status, String oldContent, String newContent) {
+        this.path = path;
+        this.status = status;
+        this.oldContent = oldContent;
+        this.newContent = newContent;
+    }
+
+    public String getPath() {
+        return path;
+    }
+
+    public String getOldContent() {
+        return oldContent;
+    }
+
+    public String getNewContent() {
+        return newContent;
+    }
+
+    public Status getStatus() {
+        return status;
+    }
+
+    public void setStatus(Status status) {
+        this.status = status;
+    }
+
+    @Override
+    public String toString() {
+        return status + " : " + path;
+    }
+}
+
+
+================================================================================
+FILE: merge/Merge.java
+================================================================================
+
+package merge;
+
+import composite.File;
+import composite.Folder;
+import prototype.Branch;
+import repository.Component;
+import state.Conflict;
+import state.NotConflict;
+import state.ProjectState;
+import strategy.Strategy;
+
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+
+public class Merge implements Component {
+    private final Strategy strategy;
+    private Branch sourceBranch;
+    private Branch destinationBranch;
+
+    public Merge(Strategy strategy) {
+        this.strategy = strategy;
+    }
+
+    public void submit(Branch sourceBranch, Branch destinationBranch) {
+        this.sourceBranch = sourceBranch;
+        this.destinationBranch = destinationBranch;
+    }
+
+    public MergeResult approve() {
+        if (sourceBranch == null || destinationBranch == null) {
+            throw new IllegalStateException("Source and destination branches must be selected.");
+        }
+        return strategy.execute(destinationBranch.getProject(), sourceBranch);
+    }
+
+    public ProjectState inspect(String sourceContent, String destinationContent, String path) {
+        if (sourceContent != null && destinationContent != null && !sourceContent.equals(destinationContent)) {
+            return new Conflict(path, sourceContent, destinationContent);
+        }
+        return new NotConflict();
+    }
+
+    public static MergeResult applyStrategy(Folder destination, Folder source, boolean sourcePreferred, String strategyName) {
+        Map<String, String> sourceFiles = operations.FileCollectorOperation.collect(source);
+        Map<String, String> destinationFiles = operations.FileCollectorOperation.collect(destination);
+        Set<String> allPaths = new HashSet<>();
+        allPaths.addAll(sourceFiles.keySet());
+        allPaths.addAll(destinationFiles.keySet());
+
+        MergeResult result = new MergeResult(strategyName);
+
+        for (String path : allPaths) {
+            boolean inSource = sourceFiles.containsKey(path);
+            boolean inDestination = destinationFiles.containsKey(path);
+
+            if (inSource && !inDestination) {
+                destination.addFileAtPath(path, sourceFiles.get(path));
+                result.addChange(new Change(path, Change.Status.ADDED, null, sourceFiles.get(path)));
+            } else if (!inSource) {
+                destination.detachFile(path);
+                result.addChange(new Change(path, Change.Status.DELETED, destinationFiles.get(path), null));
+            } else if (sourceFiles.get(path).equals(destinationFiles.get(path))) {
+                result.addChange(new Change(path, Change.Status.UNCHANGED,
+                        destinationFiles.get(path), sourceFiles.get(path)));
+            } else {
+                ProjectState state = new Conflict(path, sourceFiles.get(path), destinationFiles.get(path));
+                if (state.isConflict()) {
+                    if (sourcePreferred) {
+                        destination.updateOrAddFile(path, sourceFiles.get(path));
+                    }
+                    result.addChange(new Change(path, Change.Status.CONFLICT,
+                            destinationFiles.get(path), sourceFiles.get(path)));
+                    result.addChange(new Change(path, Change.Status.RESOLVED,
+                            destinationFiles.get(path), sourcePreferred ? sourceFiles.get(path) : destinationFiles.get(path)));
+                }
+            }
+        }
+
+        destination.refreshPaths("");
+        return result;
+    }
+
+    @Override
+    public void methods() {
+        System.out.println("Merge operation");
+    }
+}
+
+
+================================================================================
+FILE: merge/MergeResult.java
+================================================================================
+
+package merge;
+
+import java.util.ArrayList;
+import java.util.List;
+
+public class MergeResult {
+    private final List<Change> changes = new ArrayList<>();
+    private final String strategyName;
+
+    public MergeResult(String strategyName) {
+        this.strategyName = strategyName;
+    }
+
+    public void addChange(Change change) {
+        changes.add(change);
+    }
+
+    public List<Change> getChanges() {
+        return new ArrayList<>(changes);
+    }
+
+    public String getStrategyName() {
+        return strategyName;
+    }
+
+    public void printResult() {
+        System.out.println("\n===== MERGE RESULT =====");
+        System.out.println("Strategy: " + strategyName);
+        print(Change.Status.ADDED, "Added");
+        print(Change.Status.DELETED, "Deleted");
+        print(Change.Status.MODIFIED, "Modified");
+        print(Change.Status.CONFLICT, "In Conflict");
+        print(Change.Status.RESOLVED, "Resolved");
+        print(Change.Status.UNCHANGED, "Unchanged");
+        System.out.println("========================");
+    }
+
+    private void print(Change.Status status, String title) {
+        System.out.println(title + ":");
+        boolean found = false;
+        for (Change change : changes) {
+            if (change.getStatus() == status) {
+                System.out.println("  - " + change.getPath());
+                found = true;
+            }
+        }
+        if (!found) {
+            System.out.println("  None");
+        }
+    }
+}
+
+
+================================================================================
+FILE: operations/ExtensionSearchOperation.java
+================================================================================
+
+package operations;
+
+import composite.File;
+import composite.Folder;
+
+import java.util.ArrayList;
+import java.util.List;
+
+public class ExtensionSearchOperation implements HierarchyOperation {
+    private final String extension;
+
+    public ExtensionSearchOperation(String extension) {
+        this.extension = extension.startsWith(".") ? extension : "." + extension;
+    }
+
+    @Override
+    public Object execute(Folder folder) {
+        return search(folder);
+    }
+
+    public List<String> search(Folder folder) {
+        List<String> result = new ArrayList<>();
+        collect(folder, result);
+        return result;
+    }
+
+    private void collect(Folder folder, List<String> result) {
+        for (File file : folder.getFiles()) {
+            if (file.getName().endsWith(extension)) {
+                result.add(file.getFilePath());
+            }
+        }
+        for (Folder child : folder.getFolders()) {
+            collect(child, result);
+        }
+    }
+}
+
+
+================================================================================
+FILE: operations/FileCollectorOperation.java
+================================================================================
+
+package operations;
+
+import composite.File;
+import composite.Folder;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+public class FileCollectorOperation implements HierarchyOperation {
+    @Override
+    public Object execute(Folder folder) {
+        return collect(folder);
+    }
+
+    public static Map<String, String> collect(Folder folder) {
+        Map<String, String> result = new LinkedHashMap<>();
+        collect(folder, result);
+        return result;
+    }
+
+    private static void collect(Folder folder, Map<String, String> result) {
+        for (File file : folder.getFiles()) {
+            result.put(file.getFilePath(), file.getContent());
+        }
+        for (Folder child : folder.getFolders()) {
+            collect(child, result);
+        }
+    }
+}
+
+
+================================================================================
+FILE: operations/FileCountOperation.java
+================================================================================
+
+package operations;
+
+import composite.File;
+import composite.Folder;
+
+public class FileCountOperation implements HierarchyOperation {
+    @Override
+    public Object execute(Folder folder) {
+        int count = 0;
+        for (File file : folder.getFiles()) {
+            count++;
+        }
+        for (Folder child : folder.getFolders()) {
+            count += (Integer) execute(child);
+        }
+        return count;
+    }
+}
+
+
+================================================================================
+FILE: operations/HierarchyOperation.java
+================================================================================
+
+package operations;
+
+import composite.Folder;
+
+public interface HierarchyOperation {
+    Object execute(Folder folder);
+}
+
+
+================================================================================
+FILE: operations/TotalSizeOperation.java
+================================================================================
+
+package operations;
+
+import composite.File;
+import composite.Folder;
+
+public class TotalSizeOperation implements HierarchyOperation {
+    @Override
+    public Object execute(Folder folder) {
+        long size = 0;
+        for (File file : folder.getFiles()) {
+            size += file.getContent().length();
+        }
+        for (Folder child : folder.getFolders()) {
+            size += (Long) execute(child);
+        }
+        return size;
+    }
+}
+
+
+================================================================================
+FILE: prototype/Branch.java
+================================================================================
+
+package prototype;
+
+import composite.Folder;
+import repository.Commit;
+import repository.Component;
+
+public class Branch implements Prototype, Component {
+    private String code;
+    private Folder project;
+    private Commit head;
+
+    public Branch(String code, Folder project) {
+        this(code, project, null);
+    }
+
+    public Branch(String code, Folder project, Commit head) {
+        this.code = code;
+        this.project = project == null ? new Folder("project") : project.deepCopy();
+        this.head = head;
+    }
+
+    @Override
+    public String getCode() {
+        return code;
+    }
+
+    public void setCode(String code) {
+        this.code = code;
+    }
+
+    public Folder getProject() {
+        return project;
+    }
+
+    public void setProject(Folder project) {
+        this.project = project.deepCopy();
+        this.project.refreshPaths("");
+    }
+
+    public Commit getHead() {
+        return head;
+    }
+
+    public void setHead(Commit head) {
+        this.head = head;
+    }
+
+    @Override
+    public Prototype clone() {
+        return new Branch(code, project.deepCopy(), head);
+    }
+
+    public Branch cloneAs(String newCode) {
+        Branch copy = new Branch(newCode, project.deepCopy(), head);
+        return copy;
+    }
+
+    @Override
+    public void methods() {
+        System.out.println("Branch: " + code);
+    }
+}
+
+
+================================================================================
+FILE: prototype/Prototype.java
+================================================================================
+
+package prototype;
+
+public interface Prototype {
+    String getCode();
+    Prototype clone();
+}
+
+
+================================================================================
+FILE: prototype/PrototypeRegistry.java
+================================================================================
+
+package prototype;
+
+import java.util.HashMap;
+import java.util.Map;
+
+public class PrototypeRegistry {
+    private final Map<String, Prototype> codes = new HashMap<>();
+
+    public void addCode(String name, Prototype prototype) {
+        codes.put(name, prototype);
+    }
+
+    public void setCode(String name, Prototype prototype) {
+        codes.put(name, prototype);
+    }
+
+    public Prototype getCode(String name) {
+        return codes.get(name);
+    }
+
+    public Prototype createClone(String sourceName, String newName) {
+        Prototype prototype = codes.get(sourceName);
+        if (prototype == null) {
+            throw new IllegalArgumentException("Prototype not found: " + sourceName);
+        }
+        Prototype clone = prototype.clone();
+        codes.put(newName, clone);
+        return clone;
+    }
+}
+
+
+================================================================================
+FILE: repository/Commit.java
+================================================================================
+
+package repository;
+
+import composite.Folder;
+import memento.EditorSnapshot;
+
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.concurrent.atomic.AtomicInteger;
+
+public final class Commit {
+    private static final AtomicInteger COUNTER = new AtomicInteger(0);
+    private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+
+    private final String id;
+    private final String message;
+    private final String author;
+    private final LocalDateTime timestamp;
+    private final Commit parentCommit;
+    private final EditorSnapshot snapshot;
+
+    public Commit(String message, String author, Commit parentCommit, Folder project) {
+        this.id = "C" + COUNTER.incrementAndGet();
+        this.message = message;
+        this.author = author;
+        this.timestamp = LocalDateTime.now();
+        this.parentCommit = parentCommit;
+        this.snapshot = new EditorSnapshot(project);
+    }
+
+    public String getId() {
+        return id;
+    }
+
+    public String getMessage() {
+        return message;
+    }
+
+    public String getAuthor() {
+        return author;
+    }
+
+    public LocalDateTime getTimestamp() {
+        return timestamp;
+    }
+
+    public Commit getParentCommit() {
+        return parentCommit;
+    }
+
+    public EditorSnapshot getSnapshot() {
+        return snapshot;
+    }
+
+    public Folder getProjectSnapshot() {
+        return snapshot.getProjectSnapshot();
+    }
+
+    public String getCode() {
+        return id;
+    }
+
+    public void print() {
+        System.out.println(id + " | " + message + " | " + author + " | " + timestamp.format(FORMATTER));
+        if (parentCommit != null) {
+            System.out.println("  Parent: " + parentCommit.getId());
+        } else {
+            System.out.println("  Parent: None");
+        }
+    }
+
+    @Override
+    public String toString() {
+        return id + " - " + message + " (" + author + ", " + timestamp.format(FORMATTER) + ")";
+    }
+}
+
+
+================================================================================
+FILE: repository/CommitSection.java
+================================================================================
+
+package repository;
+
+public class CommitSection {
+    public String message;
+    public String code;
+    public String author;
+
+    public CommitSection(String message, String code, String author) {
+        this.message = message;
+        this.code = code;
+        this.author = author;
+    }
+
+    public String getCode() {
+        return code;
+    }
+
+    public String getMessage() {
+        return message;
+    }
+}
+
+
+================================================================================
+FILE: repository/Component.java
+================================================================================
+
+package repository;
+
+public interface Component {
+    void methods();
+}
+
+
+================================================================================
+FILE: repository/Git.java
+================================================================================
+
+package repository;
+
+import command.Command;
+import composite.Folder;
+import memento.EditorSnapshot;
+import memento.SnapshotHistory;
+
+import java.util.ArrayDeque;
+import java.util.Deque;
+
+public class Git {
+    private Folder folder;
+    private final Deque<Command> undoStack = new ArrayDeque<>();
+    private final Deque<Command> redoStack = new ArrayDeque<>();
+    private final SnapshotHistory history = new SnapshotHistory();
+
+    public Git(Folder folder) {
+        this.folder = folder == null ? new Folder("project") : folder;
+    }
+
+    public Folder getWorkingFolder() {
+        return folder;
+    }
+
+    public void setWorkingFolder(Folder folder) {
+        this.folder = folder == null ? new Folder("project") : folder;
+        undoStack.clear();
+        redoStack.clear();
+    }
+
+    public void execute(Command command) {
+        if (command == null) {
+            return;
+        }
+        history.push(new EditorSnapshot(folder));
+        command.execute();
+        undoStack.push(command);
+        redoStack.clear();
+    }
+
+    public void undo() {
+        if (undoStack.isEmpty()) {
+            System.out.println("Nothing to undo.");
+            return;
+        }
+        Command command = undoStack.pop();
+        command.undo();
+        redoStack.push(command);
+
+        EditorSnapshot snapshot = history.pop();
+        if (snapshot != null) {
+            folder = snapshot.getProjectSnapshot();
+        }
+        System.out.println("Undo completed.");
+    }
+
+    public void redo() {
+        if (redoStack.isEmpty()) {
+            System.out.println("Nothing to redo.");
+            return;
+        }
+        Command command = redoStack.pop();
+        command.execute();
+        undoStack.push(command);
+        history.push(new EditorSnapshot(folder));
+        System.out.println("Redo completed.");
+    }
+
+    public void clearCommandHistory() {
+        undoStack.clear();
+        redoStack.clear();
+        history.clear();
+    }
+
+    public void saveSnapshot() {
+        history.push(new EditorSnapshot(folder));
+    }
+
+    public EditorSnapshot restoreSnapshot() {
+        return history.pop();
+    }
+
+    public String execute() {
+        return "Git is ready.";
+    }
+
+    public void undoStackInfo() {
+        System.out.println("Undo operations available: " + undoStack.size());
+        System.out.println("Redo operations available: " + redoStack.size());
+    }
+
+    public void commit() {
+        saveSnapshot();
+    }
+}
+
+
+================================================================================
+FILE: repository/Repository.java
+================================================================================
+
+package repository;
+
+import command.Command;
+import command.CreateCommand;
+import command.DeleteCommand;
+import command.ModifyCommand;
+import command.MoveCommand;
+import command.RenameCommand;
+import composite.File;
+import composite.Folder;
+import events.ActivityLogger;
+import events.BranchEventListener;
+import events.CommitEventListener;
+import events.MergeEventListener;
+import events.RepositoryEvent;
+import events.RepositoryEventListener;
+import merge.Change;
+import merge.MergeResult;
+import memento.EditorSnapshot;
+import operations.ExtensionSearchOperation;
+import operations.FileCollectorOperation;
+import operations.FileCountOperation;
+import operations.TotalSizeOperation;
+import prototype.Branch;
+import prototype.Prototype;
+import prototype.PrototypeRegistry;
+import search.SearchFile;
+import strategy.ConcreteStrategy;
+import strategy.DestinationPreferredStrategy;
+import strategy.SourcePreferredStrategy;
+import strategy.Strategy;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+public class Repository implements RepositoryManagement {
+    private final String name;
+    private final Git git;
+    private final Map<String, Branch> branches = new LinkedHashMap<>();
+    private final PrototypeRegistry prototypeRegistry = new PrototypeRegistry();
+    private final List<RepositoryEventListener> listeners = new ArrayList<>();
+    private final ActivityLogger activityLogger = new ActivityLogger();
+    private Strategy defaultStrategy = new ConcreteStrategy(new SourcePreferredStrategy());
+    private Branch activeBranch;
+
+    public Repository(String name) {
+        this.name = name;
+        Folder root = new Folder("project");
+        this.git = new Git(root);
+        Branch main = new Branch("main", root);
+        branches.put("main", main);
+        prototypeRegistry.addCode("main", main);
+        activeBranch = main;
+
+        listeners.add(new CommitEventListener());
+        listeners.add(new BranchEventListener());
+        listeners.add(new MergeEventListener());
+        listeners.add(activityLogger);
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public Branch getActiveBranch() {
+        return activeBranch;
+    }
+
+    public Git getGit() {
+        return git;
+    }
+
+    @Override
+    public Repository repository() {
+        return this;
+    }
+
+    public void addListener(RepositoryEventListener listener) {
+        if (listener != null) {
+            listeners.add(listener);
+        }
+    }
+
+    public void notifyEvent(String type, String message) {
+        RepositoryEvent event = new RepositoryEvent(type, message);
+        for (RepositoryEventListener listener : listeners) {
+            listener.onEvent(event);
+        }
+    }
+
+    public void createFile(String parentPath, String name, String content) {
+        execute(new CreateCommand(git, parentPath, name, false, content));
+        syncActiveBranch();
+        notifyEvent("MODIFY", "File created: " + name);
+    }
+
+    public void createFolder(String parentPath, String name) {
+        execute(new CreateCommand(git, parentPath, name, true, ""));
+        syncActiveBranch();
+        notifyEvent("MODIFY", "Folder created: " + name);
+    }
+
+    public void modify(String filePath, String content) {
+        execute(new ModifyCommand(git, filePath, content));
+        syncActiveBranch();
+        notifyEvent("MODIFY", "File modified: " + filePath);
+    }
+
+    public void rename(String path, String newName) {
+        execute(new RenameCommand(git, path, newName));
+        syncActiveBranch();
+        notifyEvent("MODIFY", "Renamed: " + path + " -> " + newName);
+    }
+
+    public void move(String sourcePath, String destinationFolderPath) {
+        execute(new MoveCommand(git, sourcePath, destinationFolderPath));
+        syncActiveBranch();
+        notifyEvent("MODIFY", "Moved: " + sourcePath + " -> " + destinationFolderPath);
+    }
+
+    public void delete(String path) {
+        execute(new DeleteCommand(git, path));
+        syncActiveBranch();
+        notifyEvent("MODIFY", "Deleted: " + path);
+    }
+
+    private void execute(Command command) {
+        git.execute(command);
+    }
+
+    public Commit commit(String message, String author) {
+        Commit parent = activeBranch.getHead();
+        Commit commit = new Commit(message, author, parent, git.getWorkingFolder());
+        activeBranch.setHead(commit);
+        activeBranch.setProject(git.getWorkingFolder());
+        notifyEvent("COMMIT", "Commit " + commit.getId() + " created: " + message);
+        return commit;
+    }
+
+    public List<Commit> getCommitHistory() {
+        List<Commit> commits = new ArrayList<>();
+        Commit current = activeBranch.getHead();
+        while (current != null) {
+            commits.add(current);
+            current = current.getParentCommit();
+        }
+        return commits;
+    }
+
+    public Commit findCommit(String id) {
+        for (Branch branch : branches.values()) {
+            Commit current = branch.getHead();
+            while (current != null) {
+                if (current.getId().equalsIgnoreCase(id)) {
+                    return current;
+                }
+                current = current.getParentCommit();
+            }
+        }
+        return null;
+    }
+
+    public void restore(String commitId) {
+        Commit commit = findCommit(commitId);
+        if (commit == null) {
+            throw new IllegalArgumentException("Commit not found: " + commitId);
+        }
+        EditorSnapshot snapshot = commit.getSnapshot();
+        git.setWorkingFolder(snapshot.getProjectSnapshot());
+        syncActiveBranch();
+        notifyEvent("RESTORE", "Project restored to commit " + commitId);
+    }
+
+    public Change[] compareCommits(String olderId, String newerId) {
+        Commit older = findCommit(olderId);
+        Commit newer = findCommit(newerId);
+        if (older == null || newer == null) {
+            throw new IllegalArgumentException("Both commits must exist.");
+        }
+
+        Map<String, String> oldFiles = FileCollectorOperation.collect(older.getProjectSnapshot());
+        Map<String, String> newFiles = FileCollectorOperation.collect(newer.getProjectSnapshot());
+        Map<String, Change> changes = new LinkedHashMap<>();
+
+        for (String path : union(oldFiles, newFiles)) {
+            boolean oldExists = oldFiles.containsKey(path);
+            boolean newExists = newFiles.containsKey(path);
+            if (!oldExists) {
+                changes.put(path, new Change(path, Change.Status.ADDED, null, newFiles.get(path)));
+            } else if (!newExists) {
+                changes.put(path, new Change(path, Change.Status.DELETED, oldFiles.get(path), null));
+            } else if (!oldFiles.get(path).equals(newFiles.get(path))) {
+                changes.put(path, new Change(path, Change.Status.MODIFIED, oldFiles.get(path), newFiles.get(path)));
+            } else {
+                changes.put(path, new Change(path, Change.Status.UNCHANGED, oldFiles.get(path), newFiles.get(path)));
+            }
+        }
+        return changes.values().toArray(new Change[0]);
+    }
+
+    private List<String> union(Map<String, String> first, Map<String, String> second) {
+        List<String> paths = new ArrayList<>();
+        paths.addAll(first.keySet());
+        for (String path : second.keySet()) {
+            if (!paths.contains(path)) {
+                paths.add(path);
+            }
+        }
+        return paths;
+    }
+
+    public void createBranch(String branchName) {
+        createBranchFromBranch(branchName, activeBranch.getCode());
+    }
+
+    public void createBranchFromBranch(String branchName, String sourceBranchName) {
+        if (branches.containsKey(branchName)) {
+            throw new IllegalArgumentException("Branch already exists: " + branchName);
+        }
+        Branch source = branches.get(sourceBranchName);
+        if (source == null) {
+            throw new IllegalArgumentException("Source branch not found: " + sourceBranchName);
+        }
+        Prototype clonedPrototype = source.clone();
+        Branch clone = ((Branch) clonedPrototype).cloneAs(branchName);
+        branches.put(branchName, clone);
+        prototypeRegistry.addCode(branchName, clone);
+        notifyEvent("BRANCH_CREATED", "Branch created: " + branchName + " from " + sourceBranchName);
+    }
+
+    public void createBranchFromCommit(String branchName, String commitId) {
+        if (branches.containsKey(branchName)) {
+            throw new IllegalArgumentException("Branch already exists: " + branchName);
+        }
+        Commit commit = findCommit(commitId);
+        if (commit == null) {
+            throw new IllegalArgumentException("Commit not found: " + commitId);
+        }
+        Branch branch = new Branch(branchName, commit.getProjectSnapshot(), commit);
+        branches.put(branchName, branch);
+        prototypeRegistry.addCode(branchName, branch);
+        notifyEvent("BRANCH_CREATED", "Branch created: " + branchName + " from " + commitId);
+    }
+
+    public void switchBranch(String branchName) {
+        Branch target = branches.get(branchName);
+        if (target == null) {
+            throw new IllegalArgumentException("Branch not found: " + branchName);
+        }
+        activeBranch.setProject(git.getWorkingFolder());
+        activeBranch = target;
+        git.setWorkingFolder(target.getProject().deepCopy());
+        git.clearCommandHistory();
+        notifyEvent("BRANCH_SWITCHED", "Switched to branch: " + branchName);
+    }
+
+    public List<String> listBranches() {
+        List<String> result = new ArrayList<>();
+        for (Branch branch : branches.values()) {
+            String marker = branch == activeBranch ? "* " : "  ";
+            result.add(marker + branch.getCode());
+        }
+        return result;
+    }
+
+    public MergeResult merge(String sourceBranchName) {
+        return merge(sourceBranchName, defaultStrategy);
+    }
+
+    public MergeResult merge(String sourceBranchName, Strategy strategy) {
+        Branch source = branches.get(sourceBranchName);
+        if (source == null) {
+            throw new IllegalArgumentException("Source branch not found: " + sourceBranchName);
+        }
+        if (source == activeBranch) {
+            throw new IllegalArgumentException("Cannot merge a branch into itself.");
+        }
+        Strategy chosen = strategy == null ? defaultStrategy : strategy;
+        merge.Merge merge = new merge.Merge(new ConcreteStrategy(chosen));
+        merge.submit(source, activeBranch);
+        MergeResult result = merge.approve();
+        git.setWorkingFolder(activeBranch.getProject().deepCopy());
+        syncActiveBranch();
+        notifyEvent("MERGE", "Merged branch " + sourceBranchName + " into " + activeBranch.getCode()
+                + " using " + chosen.getClass().getSimpleName());
+        return result;
+    }
+
+    public void setDefaultStrategy(Strategy strategy) {
+        if (strategy == null) {
+            throw new IllegalArgumentException("Strategy cannot be null.");
+        }
+        this.defaultStrategy = strategy;
+    }
+
+    public Strategy getDefaultStrategy() {
+        return defaultStrategy;
+    }
+
+    public int countFiles() {
+        return (Integer) new FileCountOperation().execute(git.getWorkingFolder());
+    }
+
+    public long totalSize() {
+        return (Long) new TotalSizeOperation().execute(git.getWorkingFolder());
+    }
+
+    public List<String> listByExtension(String extension) {
+        return Collections.unmodifiableList(new ExtensionSearchOperation(extension).search(git.getWorkingFolder()));
+    }
+
+    public List<File> searchFiles(String condition) {
+        return new SearchFile().search(git.getWorkingFolder(), condition);
+    }
+
+    public void printProject() {
+        System.out.println("\n===== PROJECT: " + name + " | BRANCH: " + activeBranch.getCode() + " =====");
+        git.getWorkingFolder().printTree("");
+        System.out.println("==========================================");
+    }
+
+    public void printCommitHistory() {
+        System.out.println("\n===== COMMIT HISTORY: " + activeBranch.getCode() + " =====");
+        List<Commit> commits = getCommitHistory();
+        if (commits.isEmpty()) {
+            System.out.println("No commits yet.");
+        } else {
+            for (Commit commit : commits) {
+                commit.print();
+            }
+        }
+        System.out.println("================================");
+    }
+
+    public ActivityLogger getActivityLogger() {
+        return activityLogger;
+    }
+
+    public PrototypeRegistry getPrototypeRegistry() {
+        return prototypeRegistry;
+    }
+
+    private void syncActiveBranch() {
+        activeBranch.setProject(git.getWorkingFolder());
+    }
+}
+
+
+================================================================================
+FILE: repository/RepositoryManagement.java
+================================================================================
+
+package repository;
+
+public interface RepositoryManagement {
+    Repository repository();
+}
+
+
+================================================================================
+FILE: repository/RepositoryManager.java
+================================================================================
+
+package repository;
+
+import merge.Change;
+import merge.MergeResult;
+import prototype.Branch;
+import strategy.DestinationPreferredStrategy;
+import strategy.SourcePreferredStrategy;
+import strategy.Strategy;
+
+import java.util.List;
+
+public class RepositoryManager {
+    private Repository repository;
+
+    public Repository createRepository(String name) {
+        repository = new Repository(name);
+        return repository;
+    }
+
+    public Repository getRepository() {
+        if (repository == null) {
+            throw new IllegalStateException("Repository has not been created.");
+        }
+        return repository;
+    }
+
+    public void createFile(String parentPath, String name, String content) {
+        getRepository().createFile(parentPath, name, content);
+    }
+
+    public void createFolder(String parentPath, String name) {
+        getRepository().createFolder(parentPath, name);
+    }
+
+    public void modify(String path, String content) {
+        getRepository().modify(path, content);
+    }
+
+    public void rename(String path, String newName) {
+        getRepository().rename(path, newName);
+    }
+
+    public void move(String path, String destination) {
+        getRepository().move(path, destination);
+    }
+
+    public void delete(String path) {
+        getRepository().delete(path);
+    }
+
+    public Commit commit(String message, String author) {
+        return getRepository().commit(message, author);
+    }
+
+    public void createBranch(String name) {
+        getRepository().createBranch(name);
+    }
+
+    public void createBranchFromBranch(String name, String source) {
+        getRepository().createBranchFromBranch(name, source);
+    }
+
+    public void createBranchFromCommit(String name, String commitId) {
+        getRepository().createBranchFromCommit(name, commitId);
+    }
+
+    public void switchBranch(String name) {
+        getRepository().switchBranch(name);
+    }
+
+    public MergeResult merge(String sourceBranch) {
+        return getRepository().merge(sourceBranch);
+    }
+
+    public MergeResult merge(String sourceBranch, Strategy strategy) {
+        return getRepository().merge(sourceBranch, strategy);
+    }
+
+    public Change[] compareCommits(String older, String newer) {
+        return getRepository().compareCommits(older, newer);
+    }
+
+    public void restore(String commitId) {
+        getRepository().restore(commitId);
+    }
+
+    public void setDefaultSourcePreferred() {
+        getRepository().setDefaultStrategy(new SourcePreferredStrategy());
+    }
+
+    public void setDefaultDestinationPreferred() {
+        getRepository().setDefaultStrategy(new DestinationPreferredStrategy());
+    }
+
+    public int countFiles() {
+        return getRepository().countFiles();
+    }
+
+    public long totalSize() {
+        return getRepository().totalSize();
+    }
+
+    public List<String> listByExtension(String extension) {
+        return getRepository().listByExtension(extension);
+    }
+
+    public List<composite.File> searchFiles(String condition) {
+        return getRepository().searchFiles(condition);
+    }
+
+    public void undo() {
+        getRepository().getGit().undo();
+        getRepository().getActiveBranch().setProject(getRepository().getGit().getWorkingFolder());
+    }
+
+    public void redo() {
+        getRepository().getGit().redo();
+        getRepository().getActiveBranch().setProject(getRepository().getGit().getWorkingFolder());
+    }
+
+    public void printProject() {
+        getRepository().printProject();
+    }
+
+    public void printHistory() {
+        getRepository().printCommitHistory();
+    }
+
+    public void printActivity() {
+        getRepository().getActivityLogger().printHistory();
+    }
+
+    public void printBranches() {
+        System.out.println("\n===== BRANCHES =====");
+        for (String branch : getRepository().listBranches()) {
+            System.out.println(branch);
+        }
+        System.out.println("====================");
+    }
+
+    public Branch getActiveBranch() {
+        return getRepository().getActiveBranch();
+    }
+}
+
+
+================================================================================
+FILE: search/SearchFile.java
+================================================================================
+
+package search;
+
+import composite.File;
+import composite.Folder;
+
+import java.util.ArrayList;
+import java.util.List;
+
+public class SearchFile {
+    public List<File> search(Folder folder, String condition) {
+        List<File> result = new ArrayList<>();
+        String target = condition == null ? "" : condition.toLowerCase();
+        collect(folder, target, result);
+        return result;
+    }
+
+    private void collect(Folder folder, String target, List<File> result) {
+        for (File file : folder.getFiles()) {
+            if (file.getName().toLowerCase().contains(target)
+                    || file.getFilePath().toLowerCase().contains(target)) {
+                result.add(file);
+            }
+        }
+        for (Folder child : folder.getFolders()) {
+            collect(child, target, result);
+        }
+    }
+}
+
+
+================================================================================
+FILE: state/Conflict.java
+================================================================================
+
+package state;
+
+public class Conflict extends ProjectState {
+    private String path;
+    private String sourceContent;
+    private String destinationContent;
+
+    public Conflict() {
+        this("", "", "");
+    }
+
+    public Conflict(String path, String sourceContent, String destinationContent) {
+        this.path = path;
+        this.sourceContent = sourceContent;
+        this.destinationContent = destinationContent;
+    }
+
+    @Override
+    public boolean isConflict() {
+        return true;
+    }
+
+    public void resolve(String selectedContent) {
+        if (selectedContent == null) {
+            return;
+        }
+        this.destinationContent = selectedContent;
+    }
+
+    public void add(String content) {
+        this.sourceContent = content == null ? "" : content;
+    }
+
+    public void delete() {
+        this.sourceContent = null;
+    }
+
+    public String getPath() {
+        return path;
+    }
+
+    public String getSourceContent() {
+        return sourceContent;
+    }
+
+    public String getDestinationContent() {
+        return destinationContent;
+    }
+}
+
+
+================================================================================
+FILE: state/NotConflict.java
+================================================================================
+
+package state;
+
+public class NotConflict extends ProjectState {
+    @Override
+    public boolean isConflict() {
+        return false;
+    }
+
+    public void save() {
+        System.out.println("No conflict. Change can be saved normally.");
+    }
+}
+
+
+================================================================================
+FILE: state/ProjectState.java
+================================================================================
+
+package state;
+
+public abstract class ProjectState {
+    public abstract boolean isConflict();
+}
+
+
+================================================================================
+FILE: strategy/ConcreteStrategy.java
+================================================================================
+
+package strategy;
+
+import composite.Folder;
+import merge.MergeResult;
+import prototype.Branch;
+
+public class ConcreteStrategy implements Strategy {
+    private final Strategy selectedStrategy;
+
+    public ConcreteStrategy() {
+        this(new SourcePreferredStrategy());
+    }
+
+    public ConcreteStrategy(Strategy selectedStrategy) {
+        this.selectedStrategy = selectedStrategy == null ? new SourcePreferredStrategy() : selectedStrategy;
+    }
+
+    @Override
+    public MergeResult execute(Folder destination, Branch source) {
+        return selectedStrategy.execute(destination, source);
+    }
+}
+
+
+================================================================================
+FILE: strategy/DestinationPreferredStrategy.java
+================================================================================
+
+package strategy;
+
+import composite.Folder;
+import merge.MergeResult;
+import prototype.Branch;
+
+public class DestinationPreferredStrategy implements Strategy {
+    @Override
+    public MergeResult execute(Folder destination, Branch source) {
+        return merge.Merge.applyStrategy(destination, source.getProject(), false, "Destination Preferred");
+    }
+}
+
+
+================================================================================
+FILE: strategy/SourcePreferredStrategy.java
+================================================================================
+
+package strategy;
+
+import composite.Folder;
+import merge.MergeResult;
+import prototype.Branch;
+
+public class SourcePreferredStrategy implements Strategy {
+    @Override
+    public MergeResult execute(Folder destination, Branch source) {
+        return merge.Merge.applyStrategy(destination, source.getProject(), true, "Source Preferred");
+    }
+}
+
+
+================================================================================
+FILE: strategy/Strategy.java
+================================================================================
+
+package strategy;
+
+import composite.Folder;
+import merge.MergeResult;
+import prototype.Branch;
+
+public interface Strategy {
+    MergeResult execute(Folder destination, Branch source);
+}
+
