@@ -141,6 +141,9 @@ public class Folder implements FileSystemComponent {
 
     public File findFile(String path) {
         String target = normalize(path);
+        if (folderPath.isEmpty() && target.toLowerCase().startsWith(name.toLowerCase() + "/")) {
+            target = target.substring(name.length() + 1);
+        }
         for (File file : files) {
             if (normalize(file.getFilePath()).equals(target)) {
                 return file;
@@ -157,8 +160,11 @@ public class Folder implements FileSystemComponent {
 
     public Folder findFolder(String path) {
         String target = normalize(path);
-        if (target.isEmpty()) {
+        if (target.isEmpty() || (folderPath.isEmpty() && target.equalsIgnoreCase(name))) {
             return this;
+        }
+        if (folderPath.isEmpty() && target.toLowerCase().startsWith(name.toLowerCase() + "/")) {
+            target = target.substring(name.length() + 1);
         }
         for (Folder folder : folders) {
             if (normalize(folder.getFolderPath()).equals(target)) {
@@ -181,6 +187,9 @@ public class Folder implements FileSystemComponent {
 
     public File detachFile(String path) {
         String target = normalize(path);
+        if (folderPath.isEmpty() && target.toLowerCase().startsWith(name.toLowerCase() + "/")) {
+            target = target.substring(name.length() + 1);
+        }
         for (int i = 0; i < files.size(); i++) {
             if (normalize(files.get(i).getFilePath()).equals(target)) {
                 return files.remove(i);
@@ -197,6 +206,9 @@ public class Folder implements FileSystemComponent {
 
     public Folder detachFolder(String path) {
         String target = normalize(path);
+        if (folderPath.isEmpty() && target.toLowerCase().startsWith(name.toLowerCase() + "/")) {
+            target = target.substring(name.length() + 1);
+        }
         for (int i = 0; i < folders.size(); i++) {
             Folder folder = folders.get(i);
             if (normalize(folder.getFolderPath()).equals(target)) {

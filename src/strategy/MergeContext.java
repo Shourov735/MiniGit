@@ -30,4 +30,14 @@ public class MergeContext implements Strategy {
     public MergeResult execute(Folder destination, Branch source) {
         return strategy.execute(destination, source);
     }
+
+    @Override
+    public String resolveConflict(String sourceContent, String destinationContent) {
+        return strategy.resolveConflict(sourceContent, destinationContent);
+    }
+
+    @Override
+    public boolean isDeleteIfNotInSource() {
+        return strategy.isDeleteIfNotInSource();
+    }
 }

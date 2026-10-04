@@ -42,6 +42,7 @@ public class Repository implements RepositoryManagement {
     private final String name;
     private final Git git;
     private final Map<String, Branch> branches = new LinkedHashMap<>();
+    private final Map<String, Commit> allCommits = new LinkedHashMap<>();
     private final PrototypeRegistry prototypeRegistry = new PrototypeRegistry();
     private final List<RepositoryEventListener> listeners = new ArrayList<>();
     private final ActivityLogger activityLogger = new ActivityLogger();
@@ -140,6 +141,7 @@ public class Repository implements RepositoryManagement {
         Commit commit = new Commit(message, author, parent, git.getWorkingFolder());
         activeBranch.setHead(commit);
         activeBranch.setProject(git.getWorkingFolder());
+        allCommits.put(commit.getId().toUpperCase(), commit);
         notifyEvent("COMMIT", "Commit " + commit.getId() + " created: " + message);
         return commit;
     }
@@ -155,10 +157,17 @@ public class Repository implements RepositoryManagement {
     }
 
     public Commit findCommit(String id) {
+        if (id == null) {
+            return null;
+        }
+        Commit found = allCommits.get(id.trim().toUpperCase());
+        if (found != null) {
+            return found;
+        }
         for (Branch branch : branches.values()) {
             Commit current = branch.getHead();
             while (current != null) {
-                if (current.getId().equalsIgnoreCase(id)) {
+                if (current.getId().equalsIgnoreCase(id.trim())) {
                     return current;
                 }
                 current = current.getParentCommit();
@@ -250,6 +259,9 @@ public class Repository implements RepositoryManagement {
     }
 
     public void switchBranch(String branchName) {
+        if (branchName != null && activeBranch != null && branchName.equals(activeBranch.getCode())) {
+            return;
+        }
         Branch target = branches.get(branchName);
         if (target == null) {
             throw new IllegalArgumentException("Branch not found: " + branchName);

@@ -26,6 +26,7 @@ public class Git {
         this.folder = folder == null ? new Folder("project") : folder;
         undoStack.clear();
         redoStack.clear();
+        history.clear();
     }
 
     public void execute(Command command) {
@@ -59,10 +60,10 @@ public class Git {
             System.out.println("Nothing to redo.");
             return;
         }
+        history.push(new EditorSnapshot(folder));
         Command command = redoStack.pop();
         command.execute();
         undoStack.push(command);
-        history.push(new EditorSnapshot(folder));
         System.out.println("Redo completed.");
     }
 

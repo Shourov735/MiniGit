@@ -87,7 +87,10 @@ public class MoveCommand implements Command {
     }
 
     private String appendDestinationPath(String name) {
-        return destinationFolderPath.isEmpty() ? name : destinationFolderPath + "/" + name;
+        String dest = destinationFolderPath == null ? "" : destinationFolderPath.trim().replace('\\', '/');
+        while (dest.startsWith("/")) dest = dest.substring(1);
+        while (dest.endsWith("/")) dest = dest.substring(0, dest.length() - 1);
+        return dest.isEmpty() ? name : dest + "/" + name;
     }
 
     private String getNameFromPath(String path) {

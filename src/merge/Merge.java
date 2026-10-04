@@ -65,7 +65,7 @@ public class Merge implements Component {
                 destination.addFileAtPath(path, sourceFiles.get(path));
                 result.addChange(new Change(path, Change.Status.ADDED, null, sourceFiles.get(path)));
             } else if (!inSource) {
-                if (strategy instanceof SourcePreferredStrategy) {
+                if (strategy != null && strategy.isDeleteIfNotInSource()) {
                     destination.detachFile(path);
                     result.addChange(new Change(path, Change.Status.DELETED, destinationFiles.get(path), null));
                 } else {

@@ -33,7 +33,8 @@ public class SearchFile implements HierarchyOperation {
     private void collect(Folder folder, String target, List<File> result) {
         for (File file : folder.getFiles()) {
             if (file.getName().toLowerCase().contains(target)
-                    || file.getFilePath().toLowerCase().contains(target)) {
+                    || file.getFilePath().toLowerCase().contains(target)
+                    || (file.getContent() != null && file.getContent().toLowerCase().contains(target))) {
                 result.add(file);
             }
         }

@@ -21,12 +21,15 @@ public class DeleteCommand implements Command {
     public void execute() {
         File targetFile = git.getWorkingFolder().findFile(path);
         if (targetFile != null) {
-            parentPath = parentPath(path);
+            String actualPath = targetFile.getFilePath();
+            int slash = actualPath.lastIndexOf('/');
+            parentPath = slash < 0 ? "" : actualPath.substring(0, slash);
             Folder parent = git.getWorkingFolder().findFolder(parentPath);
             pos = parent.getFiles().indexOf(targetFile);
             deleted = targetFile.deepCopy();
             parent.removeFile(targetFile);
             file = true;
+            git.getWorkingFolder().refreshPaths("");
             return;
         }
 
@@ -34,7 +37,9 @@ public class DeleteCommand implements Command {
         if (targetFolder == null || targetFolder == git.getWorkingFolder()) {
             throw new IllegalArgumentException("File or folder not found: " + path);
         }
-        parentPath = parentPath(path);
+        String actualFolderPath = targetFolder.getFolderPath();
+        int slash = actualFolderPath.lastIndexOf('/');
+        parentPath = slash < 0 ? "" : actualFolderPath.substring(0, slash);
         Folder parent = git.getWorkingFolder().findFolder(parentPath);
         pos = parent.getFolders().indexOf(targetFolder);
         deleted = targetFolder.deepCopy();

@@ -7,6 +7,7 @@ import merge.Change;
 import merge.MergeResult;
 import repository.Commit;
 import repository.RepositoryManager;
+import strategy.ConflictMarkerStrategy;
 import strategy.DestinationPreferredStrategy;
 import strategy.SourcePreferredStrategy;
 
@@ -162,7 +163,12 @@ public class Main {
 
     private static void createBranch() {
         String name = read("New branch name: ");
-        manager.createBranch(name);
+        String source = read("Source branch name (blank for active '" + manager.getActiveBranch().getCode() + "'): ");
+        if (source.isBlank()) {
+            manager.createBranch(name);
+        } else {
+            manager.createBranchFromBranch(name, source);
+        }
         System.out.println("Branch created.");
     }
 
@@ -195,6 +201,7 @@ public class Main {
         System.out.println("1. Use default strategy");
         System.out.println("2. Source Preferred");
         System.out.println("3. Destination Preferred");
+        System.out.println("4. Conflict Marker (Git Style)");
         String choice = read("Choose strategy: ");
 
         MergeResult result;
@@ -202,6 +209,8 @@ public class Main {
             result = manager.merge(source, new SourcePreferredStrategy());
         } else if ("3".equals(choice)) {
             result = manager.merge(source, new DestinationPreferredStrategy());
+        } else if ("4".equals(choice)) {
+            result = manager.merge(source, new ConflictMarkerStrategy());
         } else {
             result = manager.merge(source);
         }
@@ -211,6 +220,7 @@ public class Main {
     private static void chooseDefaultMergeStrategy() {
         System.out.println("1. Source Preferred");
         System.out.println("2. Destination Preferred");
+        System.out.println("3. Conflict Marker (Git Style)");
         String choice = read("Choose default strategy: ");
         if ("1".equals(choice)) {
             manager.setDefaultSourcePreferred();
@@ -218,6 +228,9 @@ public class Main {
         } else if ("2".equals(choice)) {
             manager.setDefaultDestinationPreferred();
             System.out.println("Default strategy set to Destination Preferred.");
+        } else if ("3".equals(choice)) {
+            manager.setDefaultConflictMarker();
+            System.out.println("Default strategy set to Conflict Marker.");
         } else {
             System.out.println("Invalid strategy.");
         }
@@ -263,7 +276,6 @@ public class Main {
     }
 }
 
-
 ================================================================================
 FILE: command/Command.java
 ================================================================================
@@ -274,7 +286,6 @@ public interface Command {
     void execute();
     void undo();
 }
-
 
 ================================================================================
 FILE: command/CreateCommand.java
@@ -331,7 +342,6 @@ public class CreateCommand implements Command {
     }
 }
 
-
 ================================================================================
 FILE: command/DeleteCommand.java
 ================================================================================
@@ -359,12 +369,15 @@ public class DeleteCommand implements Command {
     public void execute() {
         File targetFile = git.getWorkingFolder().findFile(path);
         if (targetFile != null) {
-            parentPath = parentPath(path);
+            String actualPath = targetFile.getFilePath();
+            int slash = actualPath.lastIndexOf('/');
+            parentPath = slash < 0 ? "" : actualPath.substring(0, slash);
             Folder parent = git.getWorkingFolder().findFolder(parentPath);
             pos = parent.getFiles().indexOf(targetFile);
             deleted = targetFile.deepCopy();
             parent.removeFile(targetFile);
             file = true;
+            git.getWorkingFolder().refreshPaths("");
             return;
         }
 
@@ -372,7 +385,9 @@ public class DeleteCommand implements Command {
         if (targetFolder == null || targetFolder == git.getWorkingFolder()) {
             throw new IllegalArgumentException("File or folder not found: " + path);
         }
-        parentPath = parentPath(path);
+        String actualFolderPath = targetFolder.getFolderPath();
+        int slash = actualFolderPath.lastIndexOf('/');
+        parentPath = slash < 0 ? "" : actualFolderPath.substring(0, slash);
         Folder parent = git.getWorkingFolder().findFolder(parentPath);
         pos = parent.getFolders().indexOf(targetFolder);
         deleted = targetFolder.deepCopy();
@@ -413,7 +428,6 @@ public class DeleteCommand implements Command {
     }
 }
 
-
 ================================================================================
 FILE: command/ModifyCommand.java
 ================================================================================
@@ -453,7 +467,6 @@ public class ModifyCommand implements Command {
         }
     }
 }
-
 
 ================================================================================
 FILE: command/MoveCommand.java
@@ -548,7 +561,10 @@ public class MoveCommand implements Command {
     }
 
     private String appendDestinationPath(String name) {
-        return destinationFolderPath.isEmpty() ? name : destinationFolderPath + "/" + name;
+        String dest = destinationFolderPath == null ? "" : destinationFolderPath.trim().replace('\\', '/');
+        while (dest.startsWith("/")) dest = dest.substring(1);
+        while (dest.endsWith("/")) dest = dest.substring(0, dest.length() - 1);
+        return dest.isEmpty() ? name : dest + "/" + name;
     }
 
     private String getNameFromPath(String path) {
@@ -563,7 +579,6 @@ public class MoveCommand implements Command {
                 && (candidatePath.equals(parentPath) || candidatePath.startsWith(parentPath + "/"));
     }
 }
-
 
 ================================================================================
 FILE: command/RenameCommand.java
@@ -635,14 +650,13 @@ public class RenameCommand implements Command {
     }
 }
 
-
 ================================================================================
 FILE: composite/File.java
 ================================================================================
 
 package composite;
 
-public class File {
+public class File implements FileSystemComponent {
     private String name;
     private String content;
     private String filePath;
@@ -659,6 +673,7 @@ public class File {
         this.filePath = filePath;
     }
 
+    @Override
     public String getName() {
         return name;
     }
@@ -671,10 +686,16 @@ public class File {
         return filePath;
     }
 
+    @Override
+    public String getPath() {
+        return filePath;
+    }
+
     public void setContent(String content) {
         this.content = content;
     }
 
+    @Override
     public void setName(String name) {
         this.name = name;
     }
@@ -683,8 +704,14 @@ public class File {
         this.filePath = filePath;
     }
 
+    @Override
     public File deepCopy() {
         return new File(name, content, filePath);
+    }
+
+    @Override
+    public void printTree(String indent) {
+        System.out.println(indent + "- " + name + " : " + content);
     }
 
     @Override
@@ -693,6 +720,19 @@ public class File {
     }
 }
 
+================================================================================
+FILE: composite/FileSystemComponent.java
+================================================================================
+
+package composite;
+
+public interface FileSystemComponent {
+    String getName();
+    void setName(String name);
+    String getPath();
+    FileSystemComponent deepCopy();
+    void printTree(String indent);
+}
 
 ================================================================================
 FILE: composite/Folder.java
@@ -703,7 +743,7 @@ package composite;
 import java.util.ArrayList;
 import java.util.List;
 
-public class Folder {
+public class Folder implements FileSystemComponent {
     private String name;
     private String folderPath;
     private final List<File> files;
@@ -720,10 +760,12 @@ public class Folder {
         this.folders = new ArrayList<>();
     }
 
+    @Override
     public String getName() {
         return name;
     }
 
+    @Override
     public void setName(String name) {
         this.name = name;
     }
@@ -732,8 +774,13 @@ public class Folder {
         return folderPath;
     }
 
-    public List<Object> getChildren() {
-        List<Object> children = new ArrayList<>();
+    @Override
+    public String getPath() {
+        return folderPath;
+    }
+
+    public List<FileSystemComponent> getChildren() {
+        List<FileSystemComponent> children = new ArrayList<>();
         children.addAll(files);
         children.addAll(folders);
         return children;
@@ -745,6 +792,23 @@ public class Folder {
 
     public List<Folder> getFolders() {
         return folders;
+    }
+
+    public void add(FileSystemComponent component) {
+        if (component instanceof File) {
+            addFile((File) component);
+        } else if (component instanceof Folder) {
+            addFolder((Folder) component);
+        }
+    }
+
+    public boolean remove(FileSystemComponent component) {
+        if (component instanceof File) {
+            return removeFile((File) component);
+        } else if (component instanceof Folder) {
+            return removeFolder((Folder) component);
+        }
+        return false;
     }
 
     public void addFile(File file) {
@@ -771,7 +835,6 @@ public class Folder {
         return folders.remove(folder);
     }
 
-
     public void addFileAtPath(String path, String content) {
         String target = normalize(path);
         int slash = target.lastIndexOf('/');
@@ -781,7 +844,6 @@ public class Folder {
         parent.addFile(new File(fileName, content));
         refreshPaths("");
     }
-
 
     public Folder ensureFolderPath(String path) {
         String target = normalize(path);
@@ -819,6 +881,9 @@ public class Folder {
 
     public File findFile(String path) {
         String target = normalize(path);
+        if (folderPath.isEmpty() && target.toLowerCase().startsWith(name.toLowerCase() + "/")) {
+            target = target.substring(name.length() + 1);
+        }
         for (File file : files) {
             if (normalize(file.getFilePath()).equals(target)) {
                 return file;
@@ -835,8 +900,11 @@ public class Folder {
 
     public Folder findFolder(String path) {
         String target = normalize(path);
-        if (target.isEmpty()) {
+        if (target.isEmpty() || (folderPath.isEmpty() && target.equalsIgnoreCase(name))) {
             return this;
+        }
+        if (folderPath.isEmpty() && target.toLowerCase().startsWith(name.toLowerCase() + "/")) {
+            target = target.substring(name.length() + 1);
         }
         for (Folder folder : folders) {
             if (normalize(folder.getFolderPath()).equals(target)) {
@@ -859,6 +927,9 @@ public class Folder {
 
     public File detachFile(String path) {
         String target = normalize(path);
+        if (folderPath.isEmpty() && target.toLowerCase().startsWith(name.toLowerCase() + "/")) {
+            target = target.substring(name.length() + 1);
+        }
         for (int i = 0; i < files.size(); i++) {
             if (normalize(files.get(i).getFilePath()).equals(target)) {
                 return files.remove(i);
@@ -875,6 +946,9 @@ public class Folder {
 
     public Folder detachFolder(String path) {
         String target = normalize(path);
+        if (folderPath.isEmpty() && target.toLowerCase().startsWith(name.toLowerCase() + "/")) {
+            target = target.substring(name.length() + 1);
+        }
         for (int i = 0; i < folders.size(); i++) {
             Folder folder = folders.get(i);
             if (normalize(folder.getFolderPath()).equals(target)) {
@@ -905,6 +979,7 @@ public class Folder {
         }
     }
 
+    @Override
     public Folder deepCopy() {
         Folder copy = new Folder(name, folderPath);
         for (File file : files) {
@@ -917,15 +992,12 @@ public class Folder {
         return copy;
     }
 
+    @Override
     public void printTree(String indent) {
-        if (!folderPath.isEmpty()) {
-            System.out.println(indent + "+ " + name + "/");
-        } else {
-            System.out.println(indent + "+ " + name + "/");
-        }
+        System.out.println(indent + "+ " + name + "/");
         String childIndent = indent + "  ";
         for (File file : files) {
-            System.out.println(childIndent + "- " + file.getName() + " : " + file.getContent());
+            file.printTree(childIndent);
         }
         for (Folder folder : folders) {
             folder.printTree(childIndent);
@@ -946,7 +1018,6 @@ public class Folder {
         return value;
     }
 }
-
 
 ================================================================================
 FILE: events/ActivityLogger.java
@@ -983,7 +1054,6 @@ public class ActivityLogger implements RepositoryEventListener {
     }
 }
 
-
 ================================================================================
 FILE: events/BranchEventListener.java
 ================================================================================
@@ -998,7 +1068,6 @@ public class BranchEventListener implements RepositoryEventListener {
         }
     }
 }
-
 
 ================================================================================
 FILE: events/CommitEventListener.java
@@ -1015,6 +1084,20 @@ public class CommitEventListener implements RepositoryEventListener {
     }
 }
 
+================================================================================
+FILE: events/DiffUpdateEventListener.java
+================================================================================
+
+package events;
+
+public class DiffUpdateEventListener implements RepositoryEventListener {
+    @Override
+    public void onEvent(RepositoryEvent event) {
+        if ("COMMIT".equals(event.getType()) || "MERGE".equals(event.getType()) || "RESTORE".equals(event.getType())) {
+            System.out.println("[Diff Reaction] Diff and comparison cache updated for " + event.getType() + ".");
+        }
+    }
+}
 
 ================================================================================
 FILE: events/MergeEventListener.java
@@ -1031,6 +1114,22 @@ public class MergeEventListener implements RepositoryEventListener {
     }
 }
 
+================================================================================
+FILE: events/ProjectViewRefreshListener.java
+================================================================================
+
+package events;
+
+public class ProjectViewRefreshListener implements RepositoryEventListener {
+    @Override
+    public void onEvent(RepositoryEvent event) {
+        if ("COMMIT".equals(event.getType()) || "RESTORE".equals(event.getType())
+                || "BRANCH_SWITCHED".equals(event.getType()) || "MERGE".equals(event.getType())
+                || "MODIFY".equals(event.getType())) {
+            System.out.println("[View Reaction] Project display refreshed.");
+        }
+    }
+}
 
 ================================================================================
 FILE: events/RepositoryEvent.java
@@ -1069,7 +1168,6 @@ public class RepositoryEvent {
     }
 }
 
-
 ================================================================================
 FILE: events/RepositoryEventListener.java
 ================================================================================
@@ -1079,7 +1177,6 @@ package events;
 public interface RepositoryEventListener {
     void onEvent(RepositoryEvent event);
 }
-
 
 ================================================================================
 FILE: memento/EditorSnapshot.java
@@ -1114,7 +1211,6 @@ public final class EditorSnapshot {
         return projectSnapshot.deepCopy();
     }
 }
-
 
 ================================================================================
 FILE: memento/SnapshotHistory.java
@@ -1153,7 +1249,6 @@ public class SnapshotHistory {
         snapshots.clear();
     }
 }
-
 
 ================================================================================
 FILE: merge/Change.java
@@ -1204,7 +1299,6 @@ public class Change {
     }
 }
 
-
 ================================================================================
 FILE: merge/Merge.java
 ================================================================================
@@ -1218,9 +1312,11 @@ import repository.Component;
 import state.Conflict;
 import state.NotConflict;
 import state.ProjectState;
+import strategy.DestinationPreferredStrategy;
+import strategy.SourcePreferredStrategy;
 import strategy.Strategy;
 
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -1253,9 +1349,14 @@ public class Merge implements Component {
     }
 
     public static MergeResult applyStrategy(Folder destination, Folder source, boolean sourcePreferred, String strategyName) {
+        Strategy strat = sourcePreferred ? new SourcePreferredStrategy() : new DestinationPreferredStrategy();
+        return applyStrategy(destination, source, strat, strategyName);
+    }
+
+    public static MergeResult applyStrategy(Folder destination, Folder source, Strategy strategy, String strategyName) {
         Map<String, String> sourceFiles = operations.FileCollectorOperation.collect(source);
         Map<String, String> destinationFiles = operations.FileCollectorOperation.collect(destination);
-        Set<String> allPaths = new HashSet<>();
+        Set<String> allPaths = new LinkedHashSet<>();
         allPaths.addAll(sourceFiles.keySet());
         allPaths.addAll(destinationFiles.keySet());
 
@@ -1269,21 +1370,26 @@ public class Merge implements Component {
                 destination.addFileAtPath(path, sourceFiles.get(path));
                 result.addChange(new Change(path, Change.Status.ADDED, null, sourceFiles.get(path)));
             } else if (!inSource) {
-                destination.detachFile(path);
-                result.addChange(new Change(path, Change.Status.DELETED, destinationFiles.get(path), null));
+                if (strategy != null && strategy.isDeleteIfNotInSource()) {
+                    destination.detachFile(path);
+                    result.addChange(new Change(path, Change.Status.DELETED, destinationFiles.get(path), null));
+                } else {
+                    result.addChange(new Change(path, Change.Status.UNCHANGED, destinationFiles.get(path), destinationFiles.get(path)));
+                }
             } else if (sourceFiles.get(path).equals(destinationFiles.get(path))) {
                 result.addChange(new Change(path, Change.Status.UNCHANGED,
                         destinationFiles.get(path), sourceFiles.get(path)));
             } else {
                 ProjectState state = new Conflict(path, sourceFiles.get(path), destinationFiles.get(path));
                 if (state.isConflict()) {
-                    if (sourcePreferred) {
-                        destination.updateOrAddFile(path, sourceFiles.get(path));
-                    }
+                    String resolvedContent = state.resolve(strategy, sourceFiles.get(path), destinationFiles.get(path));
+                    destination.updateOrAddFile(path, resolvedContent);
                     result.addChange(new Change(path, Change.Status.CONFLICT,
                             destinationFiles.get(path), sourceFiles.get(path)));
                     result.addChange(new Change(path, Change.Status.RESOLVED,
-                            destinationFiles.get(path), sourcePreferred ? sourceFiles.get(path) : destinationFiles.get(path)));
+                            destinationFiles.get(path), resolvedContent));
+                    result.addChange(new Change(path, Change.Status.MODIFIED,
+                            destinationFiles.get(path), resolvedContent));
                 }
             }
         }
@@ -1297,7 +1403,6 @@ public class Merge implements Component {
         System.out.println("Merge operation");
     }
 }
-
 
 ================================================================================
 FILE: merge/MergeResult.java
@@ -1355,7 +1460,6 @@ public class MergeResult {
     }
 }
 
-
 ================================================================================
 FILE: operations/ExtensionSearchOperation.java
 ================================================================================
@@ -1398,7 +1502,6 @@ public class ExtensionSearchOperation implements HierarchyOperation {
     }
 }
 
-
 ================================================================================
 FILE: operations/FileCollectorOperation.java
 ================================================================================
@@ -1433,7 +1536,6 @@ public class FileCollectorOperation implements HierarchyOperation {
     }
 }
 
-
 ================================================================================
 FILE: operations/FileCountOperation.java
 ================================================================================
@@ -1457,7 +1559,6 @@ public class FileCountOperation implements HierarchyOperation {
     }
 }
 
-
 ================================================================================
 FILE: operations/HierarchyOperation.java
 ================================================================================
@@ -1469,7 +1570,6 @@ import composite.Folder;
 public interface HierarchyOperation {
     Object execute(Folder folder);
 }
-
 
 ================================================================================
 FILE: operations/TotalSizeOperation.java
@@ -1493,7 +1593,6 @@ public class TotalSizeOperation implements HierarchyOperation {
         return size;
     }
 }
-
 
 ================================================================================
 FILE: prototype/Branch.java
@@ -1562,7 +1661,6 @@ public class Branch implements Prototype, Component {
     }
 }
 
-
 ================================================================================
 FILE: prototype/Prototype.java
 ================================================================================
@@ -1573,7 +1671,6 @@ public interface Prototype {
     String getCode();
     Prototype clone();
 }
-
 
 ================================================================================
 FILE: prototype/PrototypeRegistry.java
@@ -1609,7 +1706,6 @@ public class PrototypeRegistry {
         return clone;
     }
 }
-
 
 ================================================================================
 FILE: repository/Commit.java
@@ -1691,7 +1787,6 @@ public final class Commit {
     }
 }
 
-
 ================================================================================
 FILE: repository/CommitSection.java
 ================================================================================
@@ -1718,7 +1813,6 @@ public class CommitSection {
     }
 }
 
-
 ================================================================================
 FILE: repository/Component.java
 ================================================================================
@@ -1728,7 +1822,6 @@ package repository;
 public interface Component {
     void methods();
 }
-
 
 ================================================================================
 FILE: repository/Git.java
@@ -1762,6 +1855,7 @@ public class Git {
         this.folder = folder == null ? new Folder("project") : folder;
         undoStack.clear();
         redoStack.clear();
+        history.clear();
     }
 
     public void execute(Command command) {
@@ -1795,10 +1889,10 @@ public class Git {
             System.out.println("Nothing to redo.");
             return;
         }
+        history.push(new EditorSnapshot(folder));
         Command command = redoStack.pop();
         command.execute();
         undoStack.push(command);
-        history.push(new EditorSnapshot(folder));
         System.out.println("Redo completed.");
     }
 
@@ -1830,7 +1924,6 @@ public class Git {
     }
 }
 
-
 ================================================================================
 FILE: repository/Repository.java
 ================================================================================
@@ -1848,7 +1941,9 @@ import composite.Folder;
 import events.ActivityLogger;
 import events.BranchEventListener;
 import events.CommitEventListener;
+import events.DiffUpdateEventListener;
 import events.MergeEventListener;
+import events.ProjectViewRefreshListener;
 import events.RepositoryEvent;
 import events.RepositoryEventListener;
 import merge.Change;
@@ -1877,6 +1972,7 @@ public class Repository implements RepositoryManagement {
     private final String name;
     private final Git git;
     private final Map<String, Branch> branches = new LinkedHashMap<>();
+    private final Map<String, Commit> allCommits = new LinkedHashMap<>();
     private final PrototypeRegistry prototypeRegistry = new PrototypeRegistry();
     private final List<RepositoryEventListener> listeners = new ArrayList<>();
     private final ActivityLogger activityLogger = new ActivityLogger();
@@ -1895,6 +1991,8 @@ public class Repository implements RepositoryManagement {
         listeners.add(new CommitEventListener());
         listeners.add(new BranchEventListener());
         listeners.add(new MergeEventListener());
+        listeners.add(new DiffUpdateEventListener());
+        listeners.add(new ProjectViewRefreshListener());
         listeners.add(activityLogger);
     }
 
@@ -1973,6 +2071,7 @@ public class Repository implements RepositoryManagement {
         Commit commit = new Commit(message, author, parent, git.getWorkingFolder());
         activeBranch.setHead(commit);
         activeBranch.setProject(git.getWorkingFolder());
+        allCommits.put(commit.getId().toUpperCase(), commit);
         notifyEvent("COMMIT", "Commit " + commit.getId() + " created: " + message);
         return commit;
     }
@@ -1988,10 +2087,17 @@ public class Repository implements RepositoryManagement {
     }
 
     public Commit findCommit(String id) {
+        if (id == null) {
+            return null;
+        }
+        Commit found = allCommits.get(id.trim().toUpperCase());
+        if (found != null) {
+            return found;
+        }
         for (Branch branch : branches.values()) {
             Commit current = branch.getHead();
             while (current != null) {
-                if (current.getId().equalsIgnoreCase(id)) {
+                if (current.getId().equalsIgnoreCase(id.trim())) {
                     return current;
                 }
                 current = current.getParentCommit();
@@ -2083,6 +2189,9 @@ public class Repository implements RepositoryManagement {
     }
 
     public void switchBranch(String branchName) {
+        if (branchName != null && activeBranch != null && branchName.equals(activeBranch.getCode())) {
+            return;
+        }
         Branch target = branches.get(branchName);
         if (target == null) {
             throw new IllegalArgumentException("Branch not found: " + branchName);
@@ -2185,7 +2294,6 @@ public class Repository implements RepositoryManagement {
     }
 }
 
-
 ================================================================================
 FILE: repository/RepositoryManagement.java
 ================================================================================
@@ -2196,7 +2304,6 @@ public interface RepositoryManagement {
     Repository repository();
 }
 
-
 ================================================================================
 FILE: repository/RepositoryManager.java
 ================================================================================
@@ -2206,6 +2313,7 @@ package repository;
 import merge.Change;
 import merge.MergeResult;
 import prototype.Branch;
+import strategy.ConflictMarkerStrategy;
 import strategy.DestinationPreferredStrategy;
 import strategy.SourcePreferredStrategy;
 import strategy.Strategy;
@@ -2295,6 +2403,10 @@ public class RepositoryManager {
         getRepository().setDefaultStrategy(new DestinationPreferredStrategy());
     }
 
+    public void setDefaultConflictMarker() {
+        getRepository().setDefaultStrategy(new ConflictMarkerStrategy());
+    }
+
     public int countFiles() {
         return getRepository().countFiles();
     }
@@ -2346,7 +2458,6 @@ public class RepositoryManager {
     }
 }
 
-
 ================================================================================
 FILE: search/SearchFile.java
 ================================================================================
@@ -2355,11 +2466,27 @@ package search;
 
 import composite.File;
 import composite.Folder;
+import operations.HierarchyOperation;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class SearchFile {
+public class SearchFile implements HierarchyOperation {
+    private String condition;
+
+    public SearchFile() {
+        this("");
+    }
+
+    public SearchFile(String condition) {
+        this.condition = condition;
+    }
+
+    @Override
+    public Object execute(Folder folder) {
+        return search(folder, condition);
+    }
+
     public List<File> search(Folder folder, String condition) {
         List<File> result = new ArrayList<>();
         String target = condition == null ? "" : condition.toLowerCase();
@@ -2370,7 +2497,8 @@ public class SearchFile {
     private void collect(Folder folder, String target, List<File> result) {
         for (File file : folder.getFiles()) {
             if (file.getName().toLowerCase().contains(target)
-                    || file.getFilePath().toLowerCase().contains(target)) {
+                    || file.getFilePath().toLowerCase().contains(target)
+                    || (file.getContent() != null && file.getContent().toLowerCase().contains(target))) {
                 result.add(file);
             }
         }
@@ -2380,12 +2508,15 @@ public class SearchFile {
     }
 }
 
-
 ================================================================================
 FILE: state/Conflict.java
 ================================================================================
 
 package state;
+
+import strategy.ConflictMarkerStrategy;
+import strategy.SourcePreferredStrategy;
+import strategy.Strategy;
 
 public class Conflict extends ProjectState {
     private String path;
@@ -2405,6 +2536,14 @@ public class Conflict extends ProjectState {
     @Override
     public boolean isConflict() {
         return true;
+    }
+
+    @Override
+    public String resolve(Strategy strategy, String sourceContent, String destinationContent) {
+        if (strategy != null) {
+            return strategy.resolveConflict(sourceContent, destinationContent);
+        }
+        return destinationContent;
     }
 
     public void resolve(String selectedContent) {
@@ -2435,12 +2574,13 @@ public class Conflict extends ProjectState {
     }
 }
 
-
 ================================================================================
 FILE: state/NotConflict.java
 ================================================================================
 
 package state;
+
+import strategy.Strategy;
 
 public class NotConflict extends ProjectState {
     @Override
@@ -2448,11 +2588,15 @@ public class NotConflict extends ProjectState {
         return false;
     }
 
+    @Override
+    public String resolve(Strategy strategy, String sourceContent, String destinationContent) {
+        return destinationContent != null ? destinationContent : sourceContent;
+    }
+
     public void save() {
         System.out.println("No conflict. Change can be saved normally.");
     }
 }
-
 
 ================================================================================
 FILE: state/ProjectState.java
@@ -2460,13 +2604,34 @@ FILE: state/ProjectState.java
 
 package state;
 
+import strategy.Strategy;
+
 public abstract class ProjectState {
     public abstract boolean isConflict();
+    public abstract String resolve(Strategy strategy, String sourceContent, String destinationContent);
 }
-
 
 ================================================================================
 FILE: strategy/ConcreteStrategy.java
+================================================================================
+
+package strategy;
+
+/**
+ * Strategy context wrapper retained for backwards compatibility; delegates to MergeContext.
+ */
+public class ConcreteStrategy extends MergeContext {
+    public ConcreteStrategy() {
+        super(new SourcePreferredStrategy());
+    }
+
+    public ConcreteStrategy(Strategy selectedStrategy) {
+        super(selectedStrategy);
+    }
+}
+
+================================================================================
+FILE: strategy/ConflictMarkerStrategy.java
 ================================================================================
 
 package strategy;
@@ -2475,23 +2640,23 @@ import composite.Folder;
 import merge.MergeResult;
 import prototype.Branch;
 
-public class ConcreteStrategy implements Strategy {
-    private final Strategy selectedStrategy;
-
-    public ConcreteStrategy() {
-        this(new SourcePreferredStrategy());
-    }
-
-    public ConcreteStrategy(Strategy selectedStrategy) {
-        this.selectedStrategy = selectedStrategy == null ? new SourcePreferredStrategy() : selectedStrategy;
+public class ConflictMarkerStrategy implements Strategy {
+    @Override
+    public MergeResult execute(Folder destination, Branch source) {
+        return merge.Merge.applyStrategy(destination, source.getProject(), this, "Conflict Marker (Git Style)");
     }
 
     @Override
-    public MergeResult execute(Folder destination, Branch source) {
-        return selectedStrategy.execute(destination, source);
+    public String resolveConflict(String sourceContent, String destinationContent) {
+        return "<<<<<<< DESTINATION\n" + (destinationContent != null ? destinationContent : "")
+                + "\n=======\n" + (sourceContent != null ? sourceContent : "") + "\n>>>>>>> SOURCE";
+    }
+
+    @Override
+    public boolean isDeleteIfNotInSource() {
+        return false;
     }
 }
-
 
 ================================================================================
 FILE: strategy/DestinationPreferredStrategy.java
@@ -2506,10 +2671,67 @@ import prototype.Branch;
 public class DestinationPreferredStrategy implements Strategy {
     @Override
     public MergeResult execute(Folder destination, Branch source) {
-        return merge.Merge.applyStrategy(destination, source.getProject(), false, "Destination Preferred");
+        return merge.Merge.applyStrategy(destination, source.getProject(), this, "Destination Preferred");
+    }
+
+    @Override
+    public String resolveConflict(String sourceContent, String destinationContent) {
+        return destinationContent;
+    }
+
+    @Override
+    public boolean isDeleteIfNotInSource() {
+        return false;
     }
 }
 
+================================================================================
+FILE: strategy/MergeContext.java
+================================================================================
+
+package strategy;
+
+import composite.Folder;
+import merge.MergeResult;
+import prototype.Branch;
+
+/**
+ * Context class in the Strategy Pattern for managing and executing merge strategies.
+ */
+public class MergeContext implements Strategy {
+    private Strategy strategy;
+
+    public MergeContext() {
+        this(new SourcePreferredStrategy());
+    }
+
+    public MergeContext(Strategy strategy) {
+        this.strategy = strategy == null ? new SourcePreferredStrategy() : strategy;
+    }
+
+    public void setStrategy(Strategy strategy) {
+        this.strategy = strategy == null ? new SourcePreferredStrategy() : strategy;
+    }
+
+    public Strategy getStrategy() {
+        return strategy;
+    }
+
+    @Override
+    public MergeResult execute(Folder destination, Branch source) {
+        return strategy.execute(destination, source);
+    }
+
+    @Override
+    public String resolveConflict(String sourceContent, String destinationContent) {
+        return strategy.resolveConflict(sourceContent, destinationContent);
+    }
+
+    @Override
+    public boolean isDeleteIfNotInSource() {
+        return strategy.isDeleteIfNotInSource();
+    }
+}
 
 ================================================================================
 FILE: strategy/SourcePreferredStrategy.java
@@ -2524,10 +2746,19 @@ import prototype.Branch;
 public class SourcePreferredStrategy implements Strategy {
     @Override
     public MergeResult execute(Folder destination, Branch source) {
-        return merge.Merge.applyStrategy(destination, source.getProject(), true, "Source Preferred");
+        return merge.Merge.applyStrategy(destination, source.getProject(), this, "Source Preferred");
+    }
+
+    @Override
+    public String resolveConflict(String sourceContent, String destinationContent) {
+        return sourceContent;
+    }
+
+    @Override
+    public boolean isDeleteIfNotInSource() {
+        return true;
     }
 }
-
 
 ================================================================================
 FILE: strategy/Strategy.java
@@ -2541,5 +2772,13 @@ import prototype.Branch;
 
 public interface Strategy {
     MergeResult execute(Folder destination, Branch source);
+
+    default String resolveConflict(String sourceContent, String destinationContent) {
+        return destinationContent;
+    }
+
+    default boolean isDeleteIfNotInSource() {
+        return false;
+    }
 }
 

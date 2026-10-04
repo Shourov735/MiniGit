@@ -26,11 +26,8 @@ public class Conflict extends ProjectState {
 
     @Override
     public String resolve(Strategy strategy, String sourceContent, String destinationContent) {
-        if (strategy instanceof SourcePreferredStrategy) {
-            return sourceContent;
-        } else if (strategy instanceof ConflictMarkerStrategy) {
-            return "<<<<<<< DESTINATION\n" + (destinationContent != null ? destinationContent : "")
-                    + "\n=======\n" + (sourceContent != null ? sourceContent : "") + "\n>>>>>>> SOURCE";
+        if (strategy != null) {
+            return strategy.resolveConflict(sourceContent, destinationContent);
         }
         return destinationContent;
     }
